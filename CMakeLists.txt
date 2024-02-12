@@ -31,4 +31,6 @@ daw_add_state(mainstate)
 
 add_executable(${PROJECT_NAME} src/main.c)
 target_link_libraries(${PROJECT_NAME} PUBLIC daw)
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+target_include_directories(${PROJECT_NAME} PUBLIC include ${DAW_INCLUDE_DIRS})
+
+get_target_property(LINKLIBS daw LINK_LIBRARIES)
