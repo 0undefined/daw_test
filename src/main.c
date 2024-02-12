@@ -1,17 +1,15 @@
 #include <engine/engine.h>
-#include <rogue/resources.h>
+#include <engine/core/logging.h>
 
 #define MEMORY_SIZE 65536
 
 int main(void) {
 
-	Platform *p = engine_init("rogue",
-      0,0,
-	                          1.f, 0,
-	                          MEMORY_SIZE,
-	                          NULL,
-	                          NULL);
+  Platform *p = engine_init("rogue",
+      420, 420,
+      1.f, 0,
+      MEMORY_SIZE);
 
-	engine_run(p, STATE_titlescreen);
+  engine_run(p, STATE_mainstate, NULL);
   engine_stop(p);
 }
