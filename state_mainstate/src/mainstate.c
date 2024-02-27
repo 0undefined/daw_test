@@ -25,19 +25,32 @@ enum GameResources {
   MyDitherShader,
   MyTexture,
   MyGrass,
+  MyStone,
 };
 
 static const f32 speed = 128.f;
 static const f32 crate_texture_coords[36*2];
-static vec3 positions[] = {
-  {0,0,0},
-  {2,0,0},
-  {4,0,0},
-  {2,0,2},
-  {6,2,0},
-  {4,2,2},
-  {6,4,0},
-  {4,4,2},
+static vec3 positions[16*16];
+static vec3 thing[] = {
+  {2,2,4},{2,4,4},
+  {4,2,4},{4,4,4},
+  {6,2,4},{6,4,4},
+  {8,2,4},
+  {10,2,4},
+  {12,2,4},
+  {14,2,4},
+  {16,2,4},
+
+  {2,2,6}, {2,4,6},
+  {2,2,8}, {2,4,8},
+  {2,2,10},{2,4,10},
+  {2,2,12},
+  {2,2,14},
+  //{24,2,4},
+  //{26,2,4},
+  //{28,2,4},
+  //{30,2,4},
+  //{32,2,4},
 };
 
 #define ACCELERATE( x, y, z ) glm_vec3_add((vec3){x, y, z}, s->cam_acc, s->cam_acc)
@@ -49,15 +62,7 @@ void move_cam_fwd(mainstate_state *s)        { ACCELERATE(     0,        0, -spe
 void move_cam_fwd_stop(mainstate_state *s)   { ACCELERATE(     0,        0, +speed    ); }
 void move_cam_bck(mainstate_state *s)        { ACCELERATE(     0,        0,  speed    ); }
 void move_cam_bck_stop(mainstate_state *s)   { ACCELERATE(     0,        0, -speed    ); }
-//
-//void move_cam_left(mainstate_state *s)       { ACCELERATE(-speed/2.f,    0,  speed/2.f); }
-//void move_cam_left_stop(mainstate_state *s)  { ACCELERATE(+speed/2.f,    0,  -speed/2.f); }
-//void move_cam_right(mainstate_state *s)      { ACCELERATE( speed/2.f,    0, -speed/2.f); }
-//void move_cam_right_stop(mainstate_state *s) { ACCELERATE(-speed/2.f,    0,  speed/2.f); }
-//void move_cam_fwd(mainstate_state *s)        { ACCELERATE(-speed,        0, -speed    ); }
-//void move_cam_fwd_stop(mainstate_state *s)   { ACCELERATE(+speed,        0, +speed    ); }
-//void move_cam_bck(mainstate_state *s)        { ACCELERATE( speed,        0,  speed    ); }
-//void move_cam_bck_stop(mainstate_state *s)   { ACCELERATE(-speed,        0, -speed    ); }
+
 void move_cam_up(mainstate_state *s)         { ACCELERATE( 0,        speed,          0); }
 void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -speed,          0); }
 void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -speed,          0); }
@@ -140,6 +145,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
           dither_shader, sizeof(dither_shader) / sizeof(dither_shader[0])),
       [MyTexture] = Declare_Texture("resources/texture.png"),
       [MyGrass] = Declare_Texture("resources/grass.png"),
+      [MyStone] = Declare_Texture("resources/stone.png"),
   };
 
   /// Setup the camera
@@ -222,7 +228,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
       // Vertices
       crate,
       // Shader
-      get_asset(&state->resources, MyDitherShader),
+      get_asset(&state->resources, MyDefaultShader),
       // Sizeof Vertices
       sizeof(crate),
       // UV & UV size
@@ -243,6 +249,20 @@ void mainstate_init(mainstate_state *state, void* arg) {
       // Texture
       ((Texture*)get_asset(&state->resources, MyTexture))->id
       );
+
+  state->objects[2] = RenderObject_new(
+      // Vertices
+      crate,
+      // Shader
+      get_asset(&state->resources, MyDefaultShader),
+      // Sizeof Vertices
+      sizeof(crate),
+      // UV & UV size
+      (f32*)crate_texture_coords, sizeof(crate_texture_coords),
+      // Texture
+      ((Texture*)get_asset(&state->resources, MyStone))->id
+      );
+
 
   // Setup controls
 	state->input_bindings[ 0] = BindState(/*'A'*/ 38, 0, move_cam_left,  move_cam_left_stop);
@@ -265,6 +285,13 @@ void mainstate_init(mainstate_state *state, void* arg) {
 	WARN("Number of bindings: %lu", state->input_ctx.len);
 	i_ctx_push(&state->input_ctx);
 
+  for (usize i = 0; i < sizeof(positions) / sizeof(positions[0]); i++) {
+    usize x = (i / 16) * 2;
+    usize y = (i % 16) * 2;
+    positions[i][0] = (float)y;
+    positions[i][1] = 0;
+    positions[i][2] = (float)x;
+  }
   //exit(EXIT_SUCCESS);
 }
 
@@ -277,6 +304,9 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
 
   for (usize i = 0; i < sizeof(positions) / sizeof(positions[0]); i++) {
     engine_draw_model(&(state->objects[0]), positions[i]);
+  }
+  for (usize i = 0; i < sizeof(thing) / sizeof(thing[0]); i++) {
+    engine_draw_model(&(state->objects[2]), thing[i]);
   }
 
   // Move the camera
@@ -311,16 +341,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   t[0] += dir[0] * speed[2];
   t[2] -= dir[0] * speed[0];
 
-  //state->cam_pos[0] += t[0];
-  //state->cam_pos[2] -= t[2];
-
   glm_vec3_add(state->cam_pos,   t, state->cam_pos);
-
-  INFO(" > speed: %.1f  %.1f  %.1f",
-      t[0],
-      t[1],
-      t[2]);
-  INFO("");
 
   glm_vec3_copy(state->cam_pos,  state->c.pos);
   glm_vec3_scale(state->cam_speed, 0.85, state->cam_speed);
@@ -341,12 +362,6 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
     a[2] = a[2] * (1.0 - f) + f*b[2];
 
     glm_vec3_copy(a, state->c.dir);
-    //INFO("rotation[%.2f] (%.1f): %.1f  %.1f  %.1f",
-    //    state->cam_dir_dt,
-    //    f,
-    //    state->c.dir[0],
-    //    state->c.dir[1],
-    //    state->c.dir[2]);
   }
 
   //delay(50);
