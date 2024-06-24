@@ -8,13 +8,13 @@
 #define FOV_ORTHO 1
 
 #ifdef FOV_ORTHO
-#define FOV_MAX 25
+#define FOV_MAX 35
 #define FOV_MIN 10
-#define FOV_INC 1
+#define FOV_INC 5
 #else
 #define FOV_MAX 95
 #define FOV_MIN 45
-#define FOV_INC 10
+#define FOV_INC 20
 #endif
 
 enum GameResources {
@@ -28,30 +28,32 @@ enum GameResources {
   MyStone,
 };
 
-static const f32 speed = 128.f;
-static const f32 crate_texture_coords[36*2];
-static vec3 positions[16*16];
-static vec3 thing[] = {
-  {2,2,4},{2,4,4},
-  {4,2,4},{4,4,4},
-  {6,2,4},{6,4,4},
-  {8,2,4},
-  {10,2,4},
-  {12,2,4},
-  {14,2,4},
-  {16,2,4},
-
-  {2,2,6}, {2,4,6},
-  {2,2,8}, {2,4,8},
-  {2,2,10},{2,4,10},
-  {2,2,12},
-  {2,2,14},
-  //{24,2,4},
-  //{26,2,4},
-  //{28,2,4},
-  //{30,2,4},
-  //{32,2,4},
+enum blocktypes {
+  Block_air = 0,
+  Block_grass,
+  Block_stone,
 };
+
+#define WORLD_SZ_X 8
+#define WORLD_SZ_Y 4
+#define WORLD_SZ_Z 8
+static int world[WORLD_SZ_X * WORLD_SZ_Y * WORLD_SZ_Z];
+
+static const f32 speed = 128.f;
+
+static f32 crate_texture_coords[36*2];
+static vec3 positions[16*16];
+static f32 crate[36*3];
+static f32 crate_normals[36*2];
+
+#define COUNT(a) sizeof(a) / sizeof(a[0])
+ShaderBuffer shaderbuf[] = {
+  SHADERBUFFER_NEW(f32, COUNT(crate), 3, crate),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals),
+};
+#undef COUNT
+
 
 #define ACCELERATE( x, y, z ) glm_vec3_add((vec3){x, y, z}, s->cam_acc, s->cam_acc)
 void move_cam_left(mainstate_state *s)       { ACCELERATE(-speed,    0,  0); }
@@ -150,7 +152,8 @@ void mainstate_init(mainstate_state *state, void* arg) {
 
   /// Setup the camera
   // Set the position (it is zero initialized)
-  glm_vec3_copy((vec3){8, 16, 8}, state->c.pos);
+  //glm_vec3_copy((vec3){4,3,4}, state->c.pos);
+  glm_vec3_copy((vec3){WORLD_SZ_X / 2.f, WORLD_SZ_Y / 2.f + 4.f, WORLD_SZ_Z / 2.f}, state->c.pos);
   // Copy to the desired position
   glm_vec3_copy(state->c.pos, state->cam_pos);
   //glm_vec3_copy((vec3){0,0,0}, state->cam_speed);
@@ -182,117 +185,67 @@ void mainstate_init(mainstate_state *state, void* arg) {
   resources_load(&state->resources);
 
   // TODO: Fixup this mess below:
-  static f32 crate[] = {
-    -1.0f, -1.0f, -1.0f, // triangle 1 : begin
-    -1.0f, -1.0f,  1.0f,
-    -1.0f,  1.0f,  1.0f, // triangle 1 : end
-     1.0f,  1.0f, -1.0f, // triangle 2 : begin
-    -1.0f, -1.0f, -1.0f,
-    -1.0f,  1.0f, -1.0f, // triangle 2 : end
-     1.0f, -1.0f,  1.0f,
-    -1.0f, -1.0f, -1.0f,
-     1.0f, -1.0f, -1.0f,
-     1.0f,  1.0f, -1.0f,
-     1.0f, -1.0f, -1.0f,
-    -1.0f, -1.0f, -1.0f,
-    -1.0f, -1.0f, -1.0f,
-    -1.0f,  1.0f,  1.0f,
-    -1.0f,  1.0f, -1.0f,
-     1.0f, -1.0f,  1.0f,
-    -1.0f, -1.0f,  1.0f,
-    -1.0f, -1.0f, -1.0f,
-    -1.0f,  1.0f,  1.0f,
-    -1.0f, -1.0f,  1.0f,
-     1.0f, -1.0f,  1.0f,
-     1.0f,  1.0f,  1.0f,
-     1.0f, -1.0f, -1.0f,
-     1.0f,  1.0f, -1.0f,
-     1.0f, -1.0f, -1.0f,
-     1.0f,  1.0f,  1.0f,
-     1.0f, -1.0f,  1.0f,
-     1.0f,  1.0f,  1.0f,
-     1.0f,  1.0f, -1.0f,
-    -1.0f,  1.0f, -1.0f,
-     1.0f,  1.0f,  1.0f,
-    -1.0f,  1.0f, -1.0f,
-    -1.0f,  1.0f,  1.0f,
-     1.0f,  1.0f,  1.0f,
-    -1.0f,  1.0f,  1.0f,
-     1.0f, -1.0f,  1.0f
-  };
 
 
   // Create render object for the two models.
   // Use the same mesh & UV
   state->objects[0] = RenderObject_new(
-      // Vertices
-      crate,
       // Shader
       get_asset(&state->resources, MyDefaultShader),
-      // Sizeof Vertices
-      sizeof(crate),
-      // UV & UV size
-      (f32*)crate_texture_coords, sizeof(crate_texture_coords),
       // Texture
-      ((Texture*)get_asset(&state->resources, MyGrass))->id
-      );
-
-  state->objects[1] = RenderObject_new(
+      ((Texture*)get_asset(&state->resources, MyGrass))->id,
       // Vertices
-      crate,
-      // Shader
-      get_asset(&state->resources, MyDefaultShader),
-      // Sizeof Vertices
-      sizeof(crate),
-      // UV & UV size
-      (f32*)crate_texture_coords, sizeof(crate_texture_coords),
-      // Texture
-      ((Texture*)get_asset(&state->resources, MyTexture))->id
-      );
-
-  state->objects[2] = RenderObject_new(
-      // Vertices
-      crate,
-      // Shader
-      get_asset(&state->resources, MyDefaultShader),
-      // Sizeof Vertices
-      sizeof(crate),
-      // UV & UV size
-      (f32*)crate_texture_coords, sizeof(crate_texture_coords),
-      // Texture
-      ((Texture*)get_asset(&state->resources, MyStone))->id
+      shaderbuf,
+      sizeof(shaderbuf) / sizeof(ShaderBuffer)
       );
 
 
   // Setup controls
-	state->input_bindings[ 0] = BindState(/*'A'*/ 38, 0, move_cam_left,  move_cam_left_stop);
-	state->input_bindings[ 1] = BindState(/*'D'*/ 40, 0, move_cam_right, move_cam_right_stop);
-	state->input_bindings[ 2] = BindState(/*'W'*/ 25, 0, move_cam_fwd,   move_cam_fwd_stop);
-	state->input_bindings[ 3] = BindState(/*'S'*/ 39, 0, move_cam_bck,   move_cam_bck_stop);
-	state->input_bindings[ 4] = BindState(/*'W'*/ 65, 0, move_cam_up,    move_cam_up_stop);
-	state->input_bindings[ 5] = BindState(/*'S'*/ 37, 0, move_cam_dwn,   move_cam_dwn_stop);
+	state->input_bindings[ 0] = BindState(/*'A'*/ 30, 0, move_cam_left,  move_cam_left_stop);
+	state->input_bindings[ 1] = BindState(/*'D'*/ 32, 0, move_cam_right, move_cam_right_stop);
+	state->input_bindings[ 2] = BindState(/*'W'*/ 17, 0, move_cam_fwd,   move_cam_fwd_stop);
+	state->input_bindings[ 3] = BindState(/*'S'*/ 31, 0, move_cam_bck,   move_cam_bck_stop);
+	state->input_bindings[ 4] = BindState(/*'W'*/ 57, 0, move_cam_up,    move_cam_up_stop);
+	state->input_bindings[ 5] = BindState(/*'S'*/ 29, 0, move_cam_dwn,   move_cam_dwn_stop);
 
-	state->input_bindings[ 6] = BindAction(/*'-'*/ 21, 0, fov_increment);
-	state->input_bindings[ 7] = BindAction(/*'='*/ 20, 0, fov_decrement);
+	state->input_bindings[ 6] = BindAction(/*'-'*/ 13, 0, fov_increment);
+	state->input_bindings[ 7] = BindAction(/*'='*/ 12, 0, fov_decrement);
 
-	state->input_bindings[ 8] = BindAction(/*'Q'*/ 24, 0, cam_rotate_l);
-	state->input_bindings[ 9] = BindAction(/*'E'*/ 26, 0, cam_rotate_r);
+	state->input_bindings[ 8] = BindAction(/*'Q'*/ 16, 0, cam_rotate_l);
+	state->input_bindings[ 9] = BindAction(/*'E'*/ 18, 0, cam_rotate_r);
 
 	state->input_ctx = (i_ctx){
 		.bindings = (binding_t*)&state->input_bindings,
 		.len = sizeof(state->input_bindings) / sizeof(binding_t),
 	};
+
 	WARN("Number of bindings: %lu", state->input_ctx.len);
 	i_ctx_push(&state->input_ctx);
 
-  for (usize i = 0; i < sizeof(positions) / sizeof(positions[0]); i++) {
-    usize x = (i / 16) * 2;
-    usize y = (i % 16) * 2;
-    positions[i][0] = (float)y;
-    positions[i][1] = 0;
-    positions[i][2] = (float)x;
-  }
-  //exit(EXIT_SUCCESS);
+  //for (usize i = 0; i < sizeof(positions) / sizeof(positions[0]); i++) {
+  //  usize x = (i / 16) * 2;
+  //  usize y = (i % 16) * 2;
+  //  positions[i][0] = (float)y;
+  //  positions[i][1] = 0;
+  //  positions[i][2] = (float)x;
+  //}
+  ////exit(EXIT_SUCCESS);
+  //memset(world, 0, sizeof(int) * WORLD_SZ_X * WORLD_SZ_Y * WORLD_SZ_Z);
+
+  //for (int z = 0; z < WORLD_SZ_Z; z++) {
+  //for (int y = 0; y < WORLD_SZ_Y / 2; y++) {
+  //for (int x = 0; x < WORLD_SZ_X; x++) {
+  //  world[z * WORLD_SZ_X * WORLD_SZ_Y + y * WORLD_SZ_X + x] = Block_grass;
+  //}
+  //}
+  //}
+  //for (int z = 0; z < 64; z++) {
+  //for (int y = 0; y < 256; y++) {
+  //for (int x = 0; x < 256; x++) {
+  //  world[z * WORLD_SZ_X * WORLD_SZ_Y + y * WORLD_SZ_X + x] = Block_grass;
+  //}
+  //}
+  //}
 }
 
 void* mainstate_free(mainstate_state *state) {
@@ -302,12 +255,27 @@ void* mainstate_free(mainstate_state *state) {
 StateType mainstate_update(f64 dt, mainstate_state *state) {
 	StateType next_state = STATE_null;
 
-  for (usize i = 0; i < sizeof(positions) / sizeof(positions[0]); i++) {
-    engine_draw_model(&(state->objects[0]), positions[i]);
-  }
-  for (usize i = 0; i < sizeof(thing) / sizeof(thing[0]); i++) {
-    engine_draw_model(&(state->objects[2]), thing[i]);
-  }
+  engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
+
+  //for (int z = 0; z < WORLD_SZ_Z; z++) {
+  //for (int y = 0; y < WORLD_SZ_Y; y++) {
+  //for (int x = 0; x < WORLD_SZ_X; x++) {
+  //  vec3 p = {2.f * x, 2.f * y, 2.f * z};
+  //  switch (world[z * WORLD_SZ_X * WORLD_SZ_Y + y * WORLD_SZ_X + x]) {
+  //    case Block_air:
+  //      break;
+  //    case Block_grass:
+  //      engine_draw_model(&(state->objects[0]), p);
+  //      break;
+  //    case Block_stone:
+  //      engine_draw_model(&(state->objects[1]), p);
+  //      break;
+  //    default:
+  //      break;
+  //  }
+  //}
+  //}
+  //}
 
   // Move the camera
   // ... all of this should be easily selectable in the engine
@@ -371,7 +339,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
 
 static const f32 px = 1. / 96.;
 
-static const f32 crate_texture_coords[] = {
+static f32 crate_texture_coords[] = {
     // BEHIND 0
     49.*px, 1.0,
     65.*px, 1.0,
@@ -431,4 +399,105 @@ static const f32 crate_texture_coords[] = {
     17.*px, 0.0,
      0.*px, 0.0,
     17.*px, 1.0,
+};
+
+static f32 crate_normals[] = {
+    // BEHIND 0
+    49.*px, 1.0,
+    65.*px, 1.0,
+    65.*px, 0.0,
+
+    // REAL LEFT 0
+    33.*px, 0.0,
+    49.*px, 1.0,
+    49.*px, 0.0,
+
+    // BOTTOM 0
+    81*px, 0,
+    96*px, 1,
+    96*px, 0,
+
+    // REAL LEFT 1
+    33.*px, 0.0,
+    33.*px, 1.0,
+    49.*px, 1.0,
+
+    // BEHIND 1
+    49.*px, 1.0,
+    65.*px, 0.0,
+    49.*px, 0.0,
+
+    // BOTTOM 1
+    81*px, 0,
+    81*px, 1,
+    96*px, 1,
+
+    // LEFT 0
+    0.0, 0.0,
+    0.0, 1.0,
+    17.*px, 1.0,
+
+    // RIGHT 0
+    17.*px, 0.0,
+    33.*px, 1.0,
+    33.*px, 0.0,
+
+    // RIGHT 1
+    33.*px, 1.0,
+    17.*px, 0.0,
+    17.*px, 1.0,
+
+    // TOP 0
+    80.*px, 1.0,
+    65.*px, 1.0,
+    65.*px, 0.0,
+
+    // TOP 1
+    65.*px, 1.,
+    80.*px, 0.,
+    65.*px, 0.,
+
+    // LEFT 1
+    17.*px, 0.0,
+     0.*px, 0.0,
+    17.*px, 1.0,
+};
+
+static f32 crate[] = {
+  -1.0f, -1.0f, -1.0f, // triangle 1 : begin
+  -1.0f, -1.0f,  1.0f,
+  -1.0f,  1.0f,  1.0f, // triangle 1 : end
+  1.0f,  1.0f, -1.0f, // triangle 2 : begin
+  -1.0f, -1.0f, -1.0f,
+  -1.0f,  1.0f, -1.0f, // triangle 2 : end
+  1.0f, -1.0f,  1.0f,
+  -1.0f, -1.0f, -1.0f,
+  1.0f, -1.0f, -1.0f,
+  1.0f,  1.0f, -1.0f,
+  1.0f, -1.0f, -1.0f,
+  -1.0f, -1.0f, -1.0f,
+  -1.0f, -1.0f, -1.0f,
+  -1.0f,  1.0f,  1.0f,
+  -1.0f,  1.0f, -1.0f,
+  1.0f, -1.0f,  1.0f,
+  -1.0f, -1.0f,  1.0f,
+  -1.0f, -1.0f, -1.0f,
+  -1.0f,  1.0f,  1.0f,
+  -1.0f, -1.0f,  1.0f,
+  1.0f, -1.0f,  1.0f,
+  1.0f,  1.0f,  1.0f,
+  1.0f, -1.0f, -1.0f,
+  1.0f,  1.0f, -1.0f,
+  1.0f, -1.0f, -1.0f,
+  1.0f,  1.0f,  1.0f,
+  1.0f, -1.0f,  1.0f,
+  1.0f,  1.0f,  1.0f,
+  1.0f,  1.0f, -1.0f,
+  -1.0f,  1.0f, -1.0f,
+  1.0f,  1.0f,  1.0f,
+  -1.0f,  1.0f, -1.0f,
+  -1.0f,  1.0f,  1.0f,
+  1.0f,  1.0f,  1.0f,
+  -1.0f,  1.0f,  1.0f,
+  1.0f, -1.0f,  1.0f
 };
