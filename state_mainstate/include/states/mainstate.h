@@ -16,7 +16,7 @@
 typedef struct mainstate_state {
   /* Resources */
   Shader       shaders[10];
-  RenderBatch batches[10];
+  RenderBatch  terrain;
   RenderObject objects[10];
 	i_ctx input_ctx;
   binding_t input_bindings[10];
