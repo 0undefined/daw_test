@@ -37,18 +37,23 @@ enum blocktypes {
 #define WORLD_SZ_X 8
 #define WORLD_SZ_Y 4
 #define WORLD_SZ_Z 8
-static int world[WORLD_SZ_X * WORLD_SZ_Y * WORLD_SZ_Z];
 
 static const f32 speed = 128.f;
 
 static f32 crate_texture_coords[36*2];
 static vec3 positions[16*16];
 static f32 crate[36*3];
+static f32 crate2[36*3];
 static f32 crate_normals[36*2];
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 ShaderBuffer shaderbuf[] = {
   SHADERBUFFER_NEW(f32, COUNT(crate), 3, crate),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals),
+};
+ShaderBuffer shaderbuf2[] = {
+  SHADERBUFFER_NEW(f32, COUNT(crate2), 3, crate2),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords),
   SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals),
 };
@@ -130,7 +135,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
 
   // Use the INDICES of the assets to specify the shaders to be composed
   static u32 default_shader[] = {MyVertexShader, MyFragmentShader};
-  static u32 dither_shader[] = {MyVertexShader, MyDitherFragShader};
+  static u32 dither_shader[]  = {MyVertexShader, MyDitherFragShader};
 
   /* 0. Declare resources */
   static asset_t mainstate_assets[] = {
@@ -191,13 +196,47 @@ void mainstate_init(mainstate_state *state, void* arg) {
   // Use the same mesh & UV
   state->objects[0] = RenderObject_new(
       // Shader
-      get_asset(&state->resources, MyDefaultShader),
+      get_asset(&state->resources, MyDitherShader),
       // Texture
       ((Texture*)get_asset(&state->resources, MyGrass))->id,
       // Vertices
       shaderbuf,
       sizeof(shaderbuf) / sizeof(ShaderBuffer)
       );
+  state->objects[1] = RenderObject_new(
+      // Shader
+      get_asset(&state->resources, MyDitherShader),
+      // Texture
+      ((Texture*)get_asset(&state->resources, MyGrass))->id,
+      // Vertices
+      shaderbuf2,
+      sizeof(shaderbuf2) / sizeof(ShaderBuffer)
+      );
+
+  // ### TEST RENDER BATCH
+  if (renderbatch_new(&(state->terrain), 0)) {
+    ERROR("Failed to create render batch!");
+    exit(EXIT_FAILURE);
+  }
+  if (renderbatch_add(&(state->terrain), &(state->objects[0]))) {
+    ERROR("Failed to add model to render batch!");
+    exit(EXIT_FAILURE);
+  }
+  if (renderbatch_add(&(state->terrain), &(state->objects[1]))) {
+    ERROR("Failed to add model2 to render batch!");
+    exit(EXIT_FAILURE);
+  }
+  state->objects[2] = RenderObject_new(
+      // Shader
+      get_asset(&state->resources, MyDitherShader),
+      // Texture
+      ((Texture*)get_asset(&state->resources, MyGrass))->id,
+      // Vertices
+      state->terrain.renderobj.buffer,
+      state->terrain.renderobj.buffer_len
+      );
+  //renderbatch_refresh(&(state->terrain));
+  // ### END OF TEST
 
 
   // Setup controls
@@ -222,30 +261,6 @@ void mainstate_init(mainstate_state *state, void* arg) {
 	WARN("Number of bindings: %lu", state->input_ctx.len);
 	i_ctx_push(&state->input_ctx);
 
-  //for (usize i = 0; i < sizeof(positions) / sizeof(positions[0]); i++) {
-  //  usize x = (i / 16) * 2;
-  //  usize y = (i % 16) * 2;
-  //  positions[i][0] = (float)y;
-  //  positions[i][1] = 0;
-  //  positions[i][2] = (float)x;
-  //}
-  ////exit(EXIT_SUCCESS);
-  //memset(world, 0, sizeof(int) * WORLD_SZ_X * WORLD_SZ_Y * WORLD_SZ_Z);
-
-  //for (int z = 0; z < WORLD_SZ_Z; z++) {
-  //for (int y = 0; y < WORLD_SZ_Y / 2; y++) {
-  //for (int x = 0; x < WORLD_SZ_X; x++) {
-  //  world[z * WORLD_SZ_X * WORLD_SZ_Y + y * WORLD_SZ_X + x] = Block_grass;
-  //}
-  //}
-  //}
-  //for (int z = 0; z < 64; z++) {
-  //for (int y = 0; y < 256; y++) {
-  //for (int x = 0; x < 256; x++) {
-  //  world[z * WORLD_SZ_X * WORLD_SZ_Y + y * WORLD_SZ_X + x] = Block_grass;
-  //}
-  //}
-  //}
 }
 
 void* mainstate_free(mainstate_state *state) {
@@ -255,27 +270,7 @@ void* mainstate_free(mainstate_state *state) {
 StateType mainstate_update(f64 dt, mainstate_state *state) {
 	StateType next_state = STATE_null;
 
-  engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
-
-  //for (int z = 0; z < WORLD_SZ_Z; z++) {
-  //for (int y = 0; y < WORLD_SZ_Y; y++) {
-  //for (int x = 0; x < WORLD_SZ_X; x++) {
-  //  vec3 p = {2.f * x, 2.f * y, 2.f * z};
-  //  switch (world[z * WORLD_SZ_X * WORLD_SZ_Y + y * WORLD_SZ_X + x]) {
-  //    case Block_air:
-  //      break;
-  //    case Block_grass:
-  //      engine_draw_model(&(state->objects[0]), p);
-  //      break;
-  //    case Block_stone:
-  //      engine_draw_model(&(state->objects[1]), p);
-  //      break;
-  //    default:
-  //      break;
-  //  }
-  //}
-  //}
-  //}
+  engine_draw_model(&(state->objects[2]), (vec3){0,0,0});
 
   // Move the camera
   // ... all of this should be easily selectable in the engine
@@ -500,4 +495,43 @@ static f32 crate[] = {
   1.0f,  1.0f,  1.0f,
   -1.0f,  1.0f,  1.0f,
   1.0f, -1.0f,  1.0f
+};
+
+static f32 crate2[] = {
+  -3.0f, -3.0f, -3.0f, // triangle -1 : begin
+  -3.0f, -3.0f,  -1.0f,
+  -3.0f,  -1.0f,  -1.0f, // triangle -1 : end
+  -1.0f,  -1.0f, -3.0f, // triangle 2 : begin
+  -3.0f, -3.0f, -3.0f,
+  -3.0f,  -1.0f, -3.0f, // triangle 2 : end
+  -1.0f, -3.0f,  -1.0f,
+  -3.0f, -3.0f, -3.0f,
+  -1.0f, -3.0f, -3.0f,
+  -1.0f,  -1.0f, -3.0f,
+  -1.0f, -3.0f, -3.0f,
+  -3.0f, -3.0f, -3.0f,
+  -3.0f, -3.0f, -3.0f,
+  -3.0f,  -1.0f,  -1.0f,
+  -3.0f,  -1.0f, -3.0f,
+  -1.0f, -3.0f,  -1.0f,
+  -3.0f, -3.0f,  -1.0f,
+  -3.0f, -3.0f, -3.0f,
+  -3.0f,  -1.0f,  -1.0f,
+  -3.0f, -3.0f,  -1.0f,
+  -1.0f, -3.0f,  -1.0f,
+  -1.0f,  -1.0f,  -1.0f,
+  -1.0f, -3.0f, -3.0f,
+  -1.0f,  -1.0f, -3.0f,
+  -1.0f, -3.0f, -3.0f,
+  -1.0f,  -1.0f,  -1.0f,
+  -1.0f, -3.0f,  -1.0f,
+  -1.0f,  -1.0f,  -1.0f,
+  -1.0f,  -1.0f, -3.0f,
+  -3.0f,  -1.0f, -3.0f,
+  -1.0f,  -1.0f,  -1.0f,
+  -3.0f,  -1.0f, -3.0f,
+  -3.0f,  -1.0f,  -1.0f,
+  -1.0f,  -1.0f,  -1.0f,
+  -3.0f,  -1.0f,  -1.0f,
+  -1.0f, -3.0f,  -1.0f
 };
