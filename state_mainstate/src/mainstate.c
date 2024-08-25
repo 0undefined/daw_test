@@ -48,14 +48,14 @@ static f32 crate_normals[36*2];
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 ShaderBuffer shaderbuf[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate), 3, crate),
-  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords),
-  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals),
+  SHADERBUFFER_NEW(f32, COUNT(crate), 3, crate, 0),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, 0),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals, 0),
 };
 ShaderBuffer shaderbuf2[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate2), 3, crate2),
-  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords),
-  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals),
+  SHADERBUFFER_NEW(f32, COUNT(crate2), 3, crate2, 0),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, 0),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals, 0),
 };
 #undef COUNT
 

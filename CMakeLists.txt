@@ -18,9 +18,6 @@ FetchContent_Declare(daw
   GIT_TAG glfw
 )
 
-add_compile_options(-Og -ggdb3 -fno-omit-frame-pointer)
-add_link_options(-Og -ggdb3 -fno-omit-frame-pointer)
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-D_DEBUG)
 endif()
