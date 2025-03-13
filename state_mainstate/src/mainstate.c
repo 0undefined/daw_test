@@ -47,6 +47,8 @@ static f32 crate2[36*3];
 static f32 crate_normals[36*2];
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
+/* this is an unfortunate way of declaring this, unfortunately we _really_ don't
+ * want to force compile-time known sizes of the data */
 ShaderBuffer shaderbuf[] = {
   SHADERBUFFER_NEW(f32, COUNT(crate), 3, crate, 0),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, 0),
@@ -205,7 +207,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
       );
   state->objects[1] = RenderObject_new(
       // Shader
-      get_asset(&state->resources, MyDitherShader),
+      get_asset(&state->resources, MyDefaultShader),
       // Texture
       ((Texture*)get_asset(&state->resources, MyGrass))->id,
       // Vertices
@@ -226,6 +228,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
     ERROR("Failed to add model2 to render batch!");
     exit(EXIT_FAILURE);
   }
+
   state->objects[2] = RenderObject_new(
       // Shader
       get_asset(&state->resources, MyDitherShader),
@@ -260,7 +263,6 @@ void mainstate_init(mainstate_state *state, void* arg) {
 
 	WARN("Number of bindings: %lu", state->input_ctx.len);
 	i_ctx_push(&state->input_ctx);
-
 }
 
 void* mainstate_free(mainstate_state *state) {
@@ -269,6 +271,8 @@ void* mainstate_free(mainstate_state *state) {
 
 StateType mainstate_update(f64 dt, mainstate_state *state) {
 	StateType next_state = STATE_null;
+  // Convert to seconds
+  dt = dt / 1000000000;
 
   engine_draw_model(&(state->objects[2]), (vec3){0,0,0});
 
@@ -276,11 +280,11 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   // ... all of this should be easily selectable in the engine
   vec3 acc;
   vec3 speed;
-  // add acceleration to speed
+
+  // Scale acceleration and speed by dt
   glm_vec3_scale(state->cam_acc, dt, acc);
 
-
-  glm_vec3_add(state->cam_speed, acc, state->cam_speed);
+  glm_vec3_scale(state->cam_speed, dt, speed);
 
   // add speed to position
   glm_vec3_scale(state->cam_speed, dt, speed);
@@ -326,8 +330,6 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
 
     glm_vec3_copy(a, state->c.dir);
   }
-
-  //delay(50);
 
 	return next_state;
 }
