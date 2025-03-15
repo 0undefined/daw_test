@@ -271,8 +271,9 @@ void* mainstate_free(mainstate_state *state) {
 
 StateType mainstate_update(f64 dt, mainstate_state *state) {
 	StateType next_state = STATE_null;
+
   // Convert to seconds
-  dt = dt / 1000000000;
+  dt = dt / 1000000.0;
 
   engine_draw_model(&(state->objects[2]), (vec3){0,0,0});
 
@@ -282,8 +283,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   vec3 speed;
 
   // Scale acceleration and speed by dt
-  glm_vec3_scale(state->cam_acc, dt, acc);
-
+  glm_vec3_scale(state->cam_acc,   dt, acc);
   glm_vec3_scale(state->cam_speed, dt, speed);
 
   // add speed to position
