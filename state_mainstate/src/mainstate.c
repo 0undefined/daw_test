@@ -38,10 +38,9 @@ enum blocktypes {
 #define WORLD_SZ_Y 4
 #define WORLD_SZ_Z 8
 
-static const f32 speed = 128.f;
+static const f32 speed = 96.f;
 
 static f32 crate_texture_coords[36*2];
-static vec3 positions[16*16];
 static f32 crate[36*3];
 static f32 crate2[36*3];
 static f32 crate_normals[36*2];
@@ -49,20 +48,22 @@ static f32 crate_normals[36*2];
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 /* this is an unfortunate way of declaring this, unfortunately we _really_ don't
  * want to force compile-time known sizes of the data */
+#define staticdraw ShaderBuffer_AccessFrequency_static | ShaderBuffer_AccessType_draw
 ShaderBuffer shaderbuf[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate), 3, crate, 0),
-  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, 0),
-  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals, 0),
+  SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
 };
 ShaderBuffer shaderbuf2[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate2), 3, crate2, 0),
-  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, 0),
-  SHADERBUFFER_NEW(f32, COUNT(crate_normals), 2, crate_normals, 0),
+  SHADERBUFFER_NEW(f32, COUNT(crate2),               3, crate2,               staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
 };
 #undef COUNT
 
 
-#define ACCELERATE( x, y, z ) glm_vec3_add((vec3){x, y, z}, s->cam_acc, s->cam_acc)
+#define ACCELERATE( x, y, z ) \
+  glm_vec3_add((vec3){x, y, z}, s->cam_acc, s->cam_acc)
 void move_cam_left(mainstate_state *s)       { ACCELERATE(-speed,    0,  0); }
 void move_cam_left_stop(mainstate_state *s)  { ACCELERATE(+speed,    0,  0); }
 void move_cam_right(mainstate_state *s)      { ACCELERATE( speed,    0,  0); }
@@ -161,6 +162,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
   // Set the position (it is zero initialized)
   //glm_vec3_copy((vec3){4,3,4}, state->c.pos);
   glm_vec3_copy((vec3){WORLD_SZ_X / 2.f, WORLD_SZ_Y / 2.f + 4.f, WORLD_SZ_Z / 2.f}, state->c.pos);
+
   // Copy to the desired position
   glm_vec3_copy(state->c.pos, state->cam_pos);
   //glm_vec3_copy((vec3){0,0,0}, state->cam_speed);
@@ -266,6 +268,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
 }
 
 void* mainstate_free(mainstate_state *state) {
+	i_ctx_pop();
   return NULL;
 }
 
@@ -276,9 +279,12 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   dt = dt / 1000000.0;
 
   engine_draw_model(&(state->objects[2]), (vec3){0,0,0});
+  //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
+  //engine_draw_model(&(state->objects[1]), (vec3){0,0,0});
 
   // Move the camera
   // ... all of this should be easily selectable in the engine
+  const float friction = 1.f / (1.f + (dt * 7.5f));
   vec3 acc;
   vec3 speed;
 
@@ -286,9 +292,14 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   glm_vec3_scale(state->cam_acc,   dt, acc);
   glm_vec3_scale(state->cam_speed, dt, speed);
 
-  // add speed to position
-  glm_vec3_scale(state->cam_speed, dt, speed);
+  glm_vec3_add(acc,   speed, speed);
 
+  // Add delta speed to speed
+  glm_vec3_add(acc,   state->cam_speed, state->cam_speed);
+  // Scale by friction
+  glm_vec3_scale(state->cam_speed, friction, state->cam_speed);
+
+  // add speed to position
   // Move it along the actual direction of the camera
   vec3 dir;
   glm_vec3_copy(state->c.dir, dir);
@@ -308,10 +319,11 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   t[0] += dir[0] * speed[2];
   t[2] -= dir[0] * speed[0];
 
+  // Update position
   glm_vec3_add(state->cam_pos,   t, state->cam_pos);
 
+  // Update the actual camera position
   glm_vec3_copy(state->cam_pos,  state->c.pos);
-  glm_vec3_scale(state->cam_speed, 0.85, state->cam_speed);
 
   // Rotate the camera
   if (state->cam_dir_dt - dt > 0) {
@@ -331,83 +343,83 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
     glm_vec3_copy(a, state->c.dir);
   }
 
-	return next_state;
+  return next_state;
 }
 
 static const f32 px = 1. / 96.;
 
 static f32 crate_texture_coords[] = {
     // BEHIND 0
-    49.*px, 1.0,
-    65.*px, 1.0,
-    65.*px, 0.0,
+    49.f*px, 1.0f,
+    65.f*px, 1.0f,
+    65.f*px, 0.0f,
 
     // REAL LEFT 0
-    33.*px, 0.0,
-    49.*px, 1.0,
-    49.*px, 0.0,
+    33.f*px, 0.0f,
+    49.f*px, 1.0f,
+    49.f*px, 0.0f,
 
     // BOTTOM 0
-    81*px, 0,
-    96*px, 1,
-    96*px, 0,
+    81.f*px, 0.f,
+    96.f*px, 1.f,
+    96.f*px, 0.f,
 
     // REAL LEFT 1
-    33.*px, 0.0,
-    33.*px, 1.0,
-    49.*px, 1.0,
+    33.f*px, 0.0f,
+    33.f*px, 1.0f,
+    49.f*px, 1.0f,
 
     // BEHIND 1
-    49.*px, 1.0,
-    65.*px, 0.0,
-    49.*px, 0.0,
+    49.f*px, 1.0f,
+    65.f*px, 0.0f,
+    49.f*px, 0.0f,
 
     // BOTTOM 1
-    81*px, 0,
-    81*px, 1,
-    96*px, 1,
+    81.f*px, 0.f,
+    81.f*px, 1.f,
+    96.f*px, 1.f,
 
     // LEFT 0
-    0.0, 0.0,
-    0.0, 1.0,
-    17.*px, 1.0,
+    0.0f, 0.0f,
+    0.0f, 1.0f,
+    17.f*px, 1.0f,
 
     // RIGHT 0
-    17.*px, 0.0,
-    33.*px, 1.0,
-    33.*px, 0.0,
+    17.f*px, 0.0f,
+    33.f*px, 1.0f,
+    33.f*px, 0.0f,
 
     // RIGHT 1
-    33.*px, 1.0,
-    17.*px, 0.0,
-    17.*px, 1.0,
+    33.f*px, 1.0f,
+    17.f*px, 0.0f,
+    17.f*px, 1.0f,
 
     // TOP 0
-    80.*px, 1.0,
-    65.*px, 1.0,
-    65.*px, 0.0,
+    80.f*px, 1.0f,
+    65.f*px, 1.0f,
+    65.f*px, 0.0f,
 
     // TOP 1
-    65.*px, 1.,
-    80.*px, 0.,
-    65.*px, 0.,
+    65.f*px, 1.f,
+    80.f*px, 0.f,
+    65.f*px, 0.f,
 
     // LEFT 1
-    17.*px, 0.0,
-     0.*px, 0.0,
-    17.*px, 1.0,
+    17.f*px, 0.0f,
+     0.f*px, 0.0f,
+    17.f*px, 1.0f,
 };
 
 static f32 crate_normals[] = {
     // BEHIND 0
-    49.*px, 1.0,
-    65.*px, 1.0,
-    65.*px, 0.0,
+    49.f*px, 1.0f,
+    65.f*px, 1.0f,
+    65.f*px, 0.0f,
 
     // REAL LEFT 0
-    33.*px, 0.0,
-    49.*px, 1.0,
-    49.*px, 0.0,
+    33.f*px, 0.0f,
+    49.f*px, 1.0f,
+    49.f*px, 0.0f,
 
     // BOTTOM 0
     81*px, 0,
@@ -415,14 +427,14 @@ static f32 crate_normals[] = {
     96*px, 0,
 
     // REAL LEFT 1
-    33.*px, 0.0,
-    33.*px, 1.0,
-    49.*px, 1.0,
+    33.f*px, 0.0f,
+    33.f*px, 1.0f,
+    49.f*px, 1.0f,
 
     // BEHIND 1
-    49.*px, 1.0,
-    65.*px, 0.0,
-    49.*px, 0.0,
+    49.f*px, 1.0f,
+    65.f*px, 0.0f,
+    49.f*px, 0.0f,
 
     // BOTTOM 1
     81*px, 0,
@@ -430,34 +442,34 @@ static f32 crate_normals[] = {
     96*px, 1,
 
     // LEFT 0
-    0.0, 0.0,
-    0.0, 1.0,
-    17.*px, 1.0,
+    0.0f, 0.0f,
+    0.0f, 1.0f,
+    17.f*px, 1.0f,
 
     // RIGHT 0
-    17.*px, 0.0,
-    33.*px, 1.0,
-    33.*px, 0.0,
+    17.f*px, 0.0f,
+    33.f*px, 1.0f,
+    33.f*px, 0.0f,
 
     // RIGHT 1
-    33.*px, 1.0,
-    17.*px, 0.0,
-    17.*px, 1.0,
+    33.f*px, 1.0f,
+    17.f*px, 0.0f,
+    17.f*px, 1.0f,
 
     // TOP 0
-    80.*px, 1.0,
-    65.*px, 1.0,
-    65.*px, 0.0,
+    80.f*px, 1.0f,
+    65.f*px, 1.0f,
+    65.f*px, 0.0f,
 
     // TOP 1
-    65.*px, 1.,
-    80.*px, 0.,
-    65.*px, 0.,
+    65.f*px, 1.f,
+    80.f*px, 0.f,
+    65.f*px, 0.f,
 
     // LEFT 1
-    17.*px, 0.0,
-     0.*px, 0.0,
-    17.*px, 1.0,
+    17.f*px, 0.0f,
+     0.f*px, 0.0f,
+    17.f*px, 1.0f,
 };
 
 static f32 crate[] = {
