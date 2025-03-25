@@ -324,7 +324,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   // Convert to seconds
   dt = dt / 1000000.0;
 
-  //engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
+  engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
   engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
   //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
   //engine_draw_model(&(state->objects[1]), (vec3){0,0,0});

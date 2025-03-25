@@ -14,7 +14,7 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON CACHE BOOL "Prevents cmake -S. -B.")
 set(CMAKE_DISABLE_SOURCE_CHANGES ON CACHE BOOL "Prevent writing files to CMAKE_SOURCE_DIR under configure")
 
 FetchContent_Declare(daw
-  GIT_REPOSITORY https://codeberg.org/onelin/daw.git
+  GIT_REPOSITORY /home/oscar/gits/daw
   GIT_TAG glfw
 )
 
