@@ -26,6 +26,10 @@ enum GameResources {
   MyTexture,
   MyGrass,
   MyStone,
+
+  MyQuadVertexShader,
+  MyQuadFragShader,
+  MyQuadShader,
 };
 
 enum blocktypes {
@@ -42,22 +46,27 @@ static const f32 speed = 96.f;
 
 static f32 crate_texture_coords[36*2];
 static f32 crate[36*3];
-static f32 crate2[36*3];
 static f32 crate_normals[36*2];
+static f32 quad[8];
+static u16 quad_ibo[6];
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 /* this is an unfortunate way of declaring this, unfortunately we _really_ don't
  * want to force compile-time known sizes of the data */
 #define staticdraw ShaderBuffer_AccessFrequency_static | ShaderBuffer_AccessType_draw
 ShaderBuffer shaderbuf[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw | ShaderBuffer_Type_vertexPosition),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
   SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
 };
 ShaderBuffer shaderbuf2[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate2),               3, crate2,               staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw | ShaderBuffer_Type_vertexPosition),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
   SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
+};
+ShaderBuffer shaderbuf_quad[] = {
+  SHADERBUFFER_NEW(f32, COUNT(quad),                2, quad,                  staticdraw | ShaderBuffer_Type_vertexPosition),
+  SHADERBUFFER_NEW(u16, COUNT(quad_ibo),            3, quad_ibo,              staticdraw | ShaderBuffer_Type_vertexIndex),
 };
 #undef COUNT
 
@@ -139,6 +148,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
   // Use the INDICES of the assets to specify the shaders to be composed
   static u32 default_shader[] = {MyVertexShader, MyFragmentShader};
   static u32 dither_shader[]  = {MyVertexShader, MyDitherFragShader};
+  static u32 quad_shader[]  =   {MyQuadVertexShader, MyQuadFragShader};
 
   /* 0. Declare resources */
   static asset_t mainstate_assets[] = {
@@ -156,6 +166,11 @@ void mainstate_init(mainstate_state *state, void* arg) {
       [MyTexture] = Declare_Texture("resources/texture.png"),
       [MyGrass] = Declare_Texture("resources/grass.png"),
       [MyStone] = Declare_Texture("resources/stone.png"),
+
+      [MyQuadVertexShader] = Declare_Shader("resources/quad.vert"),
+      [MyQuadFragShader] = Declare_Shader("resources/quad.frag"),
+      [MyQuadShader] = Declare_ShaderProgram(
+          quad_shader, sizeof(quad_shader) / sizeof(quad_shader[0])),
   };
 
   /// Setup the camera
@@ -202,7 +217,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
       // Shader
       get_asset(&state->resources, MyDitherShader),
       // Texture
-      ((Texture*)get_asset(&state->resources, MyGrass))->id,
+      ((Texture*)get_asset(&state->resources, MyStone))->id,
       // Vertices
       shaderbuf,
       sizeof(shaderbuf) / sizeof(ShaderBuffer)
@@ -216,22 +231,54 @@ void mainstate_init(mainstate_state *state, void* arg) {
       shaderbuf2,
       sizeof(shaderbuf2) / sizeof(ShaderBuffer)
       );
+  state->objects[2] = RenderObject_new(
+      // Shader
+      get_asset(&state->resources, MyQuadShader),
+      // Texture
+      0,
+      // Vertices
+      shaderbuf_quad,
+      sizeof(shaderbuf_quad) / sizeof(ShaderBuffer)
+      );
 
   // ### TEST RENDER BATCH
   if (renderbatch_new(&(state->terrain), 0)) {
     ERROR("Failed to create render batch!");
     exit(EXIT_FAILURE);
   }
-  if (renderbatch_add(&(state->terrain), &(state->objects[0]))) {
-    ERROR("Failed to add model to render batch!");
-    exit(EXIT_FAILURE);
+  for (int y = -16; y < 16; y++) {
+  for (int x = -16; x < 16; x++) {
+    Transform t = {
+      .position = {2 * x, 0, 2 * y},
+    };
+    if (-1 == renderbatch_add(&(state->terrain), &(state->objects[1]), &t)) {
+      ERROR("Failed to add model2 to render batch!");
+      exit(EXIT_FAILURE);
+    }
   }
-  if (renderbatch_add(&(state->terrain), &(state->objects[1]))) {
-    ERROR("Failed to add model2 to render batch!");
-    exit(EXIT_FAILURE);
+  }
+  for (int x = -4; x < 4; x++) {
+    Transform t = {
+      .position = {2 * x, 2, 8},
+    };
+    if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
+      ERROR("Failed to add model2 to render batch!");
+      exit(EXIT_FAILURE);
+    }
+  }
+  for (int x = -4; x < 4; x++) {
+    Transform t = {
+      .position = {2 * x, 2, -8},
+    };
+    if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
+      ERROR("Failed to add model2 to render batch!");
+      exit(EXIT_FAILURE);
+    }
   }
 
-  state->objects[2] = RenderObject_new(
+  // Create the render object from the buffer
+  renderbatch_refresh(&(state->terrain));
+  state->terrain.renderobj = RenderObject_new(
       // Shader
       get_asset(&state->resources, MyDitherShader),
       // Texture
@@ -240,7 +287,6 @@ void mainstate_init(mainstate_state *state, void* arg) {
       state->terrain.renderobj.buffer,
       state->terrain.renderobj.buffer_len
       );
-  //renderbatch_refresh(&(state->terrain));
   // ### END OF TEST
 
 
@@ -278,7 +324,8 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   // Convert to seconds
   dt = dt / 1000000.0;
 
-  engine_draw_model(&(state->objects[2]), (vec3){0,0,0});
+  //engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
+  engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
   //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
   //engine_draw_model(&(state->objects[1]), (vec3){0,0,0});
 
@@ -347,6 +394,18 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
 }
 
 static const f32 px = 1. / 96.;
+
+static f32 quad[] = {
+  -1.f, -1.f,
+   1.f, -1.f,
+   1.f,  1.f,
+  -1.f,  1.f,
+};
+
+static u16 quad_ibo[] = {
+  0, 1, 2,
+  2, 3, 0,
+};
 
 static f32 crate_texture_coords[] = {
     // BEHIND 0
@@ -509,43 +568,4 @@ static f32 crate[] = {
   1.0f,  1.0f,  1.0f,
   -1.0f,  1.0f,  1.0f,
   1.0f, -1.0f,  1.0f
-};
-
-static f32 crate2[] = {
-  -3.0f, -3.0f, -3.0f, // triangle -1 : begin
-  -3.0f, -3.0f,  -1.0f,
-  -3.0f,  -1.0f,  -1.0f, // triangle -1 : end
-  -1.0f,  -1.0f, -3.0f, // triangle 2 : begin
-  -3.0f, -3.0f, -3.0f,
-  -3.0f,  -1.0f, -3.0f, // triangle 2 : end
-  -1.0f, -3.0f,  -1.0f,
-  -3.0f, -3.0f, -3.0f,
-  -1.0f, -3.0f, -3.0f,
-  -1.0f,  -1.0f, -3.0f,
-  -1.0f, -3.0f, -3.0f,
-  -3.0f, -3.0f, -3.0f,
-  -3.0f, -3.0f, -3.0f,
-  -3.0f,  -1.0f,  -1.0f,
-  -3.0f,  -1.0f, -3.0f,
-  -1.0f, -3.0f,  -1.0f,
-  -3.0f, -3.0f,  -1.0f,
-  -3.0f, -3.0f, -3.0f,
-  -3.0f,  -1.0f,  -1.0f,
-  -3.0f, -3.0f,  -1.0f,
-  -1.0f, -3.0f,  -1.0f,
-  -1.0f,  -1.0f,  -1.0f,
-  -1.0f, -3.0f, -3.0f,
-  -1.0f,  -1.0f, -3.0f,
-  -1.0f, -3.0f, -3.0f,
-  -1.0f,  -1.0f,  -1.0f,
-  -1.0f, -3.0f,  -1.0f,
-  -1.0f,  -1.0f,  -1.0f,
-  -1.0f,  -1.0f, -3.0f,
-  -3.0f,  -1.0f, -3.0f,
-  -1.0f,  -1.0f,  -1.0f,
-  -3.0f,  -1.0f, -3.0f,
-  -3.0f,  -1.0f,  -1.0f,
-  -1.0f,  -1.0f,  -1.0f,
-  -3.0f,  -1.0f,  -1.0f,
-  -1.0f, -3.0f,  -1.0f
 };
