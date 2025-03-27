@@ -4,6 +4,7 @@
 #include <engine/rendering/rendering.h>
 #include <states/mainstate.h>
 #include <engine/core/state.h>
+#include <worldgen.h>
 
 #define FOV_ORTHO 1
 
@@ -176,7 +177,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
   /// Setup the camera
   // Set the position (it is zero initialized)
   //glm_vec3_copy((vec3){4,3,4}, state->c.pos);
-  glm_vec3_copy((vec3){WORLD_SZ_X / 2.f, WORLD_SZ_Y / 2.f + 4.f, WORLD_SZ_Z / 2.f}, state->c.pos);
+  glm_vec3_copy((vec3){WORLD_WIDTH / 2.f, WORLD_HEIGHT / 2.f + 4.f, WORLD_LENGTH / 2.f}, state->c.pos);
 
   // Copy to the desired position
   glm_vec3_copy(state->c.pos, state->cam_pos);
@@ -246,29 +247,16 @@ void mainstate_init(mainstate_state *state, void* arg) {
     ERROR("Failed to create render batch!");
     exit(EXIT_FAILURE);
   }
-  for (int y = -16; y < 16; y++) {
-  for (int x = -16; x < 16; x++) {
+
+  gen_terrain(state->world, WORLD_HEIGHT, WORLD_LENGTH, WORLD_WIDTH);
+  for (usize i = 0; i < WORLD_SIZE; i++) {
+    if (state->world[i] == BLOCK_none) continue;
+
+    const isize y = i / (WORLD_LENGTH * WORLD_WIDTH); // height
+    const isize z = (i - (WORLD_LENGTH * WORLD_WIDTH * y)) / WORLD_WIDTH; // length
+    const isize x = i % WORLD_WIDTH; // width
     Transform t = {
-      .position = {2 * x, 0, 2 * y},
-    };
-    if (-1 == renderbatch_add(&(state->terrain), &(state->objects[1]), &t)) {
-      ERROR("Failed to add model2 to render batch!");
-      exit(EXIT_FAILURE);
-    }
-  }
-  }
-  for (int x = -4; x < 4; x++) {
-    Transform t = {
-      .position = {2 * x, 2, 8},
-    };
-    if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
-      ERROR("Failed to add model2 to render batch!");
-      exit(EXIT_FAILURE);
-    }
-  }
-  for (int x = -4; x < 4; x++) {
-    Transform t = {
-      .position = {2 * x, 2, -8},
+      .position = {x * 2, y * 2, z * 2},
     };
     if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
       ERROR("Failed to add model2 to render batch!");
@@ -291,18 +279,18 @@ void mainstate_init(mainstate_state *state, void* arg) {
 
 
   // Setup controls
-	state->input_bindings[ 0] = BindState(/*'A'*/ 30, 0, move_cam_left,  move_cam_left_stop);
-	state->input_bindings[ 1] = BindState(/*'D'*/ 32, 0, move_cam_right, move_cam_right_stop);
-	state->input_bindings[ 2] = BindState(/*'W'*/ 17, 0, move_cam_fwd,   move_cam_fwd_stop);
-	state->input_bindings[ 3] = BindState(/*'S'*/ 31, 0, move_cam_bck,   move_cam_bck_stop);
-	state->input_bindings[ 4] = BindState(/*'W'*/ 57, 0, move_cam_up,    move_cam_up_stop);
-	state->input_bindings[ 5] = BindState(/*'S'*/ 29, 0, move_cam_dwn,   move_cam_dwn_stop);
+	state->input_bindings[ 0] = BindState(KEY_A, 0, move_cam_left,  move_cam_left_stop);
+	state->input_bindings[ 1] = BindState(KEY_D, 0, move_cam_right, move_cam_right_stop);
+	state->input_bindings[ 2] = BindState(KEY_W, 0, move_cam_fwd,   move_cam_fwd_stop);
+	state->input_bindings[ 3] = BindState(KEY_S, 0, move_cam_bck,   move_cam_bck_stop);
+	state->input_bindings[ 4] = BindState(KEY_SPACE, 0, move_cam_up,    move_cam_up_stop);
+	state->input_bindings[ 5] = BindState(MOD_CTRL, 0, move_cam_dwn,   move_cam_dwn_stop);
 
-	state->input_bindings[ 6] = BindAction(/*'-'*/ 13, 0, fov_increment);
-	state->input_bindings[ 7] = BindAction(/*'='*/ 12, 0, fov_decrement);
+	state->input_bindings[ 6] = BindAction(KEY_MINUS, 0, fov_increment);
+	state->input_bindings[ 7] = BindAction(KEY_EQUAL, 0, fov_decrement);
 
-	state->input_bindings[ 8] = BindAction(/*'Q'*/ 16, 0, cam_rotate_l);
-	state->input_bindings[ 9] = BindAction(/*'E'*/ 18, 0, cam_rotate_r);
+	state->input_bindings[ 8] = BindAction(KEY_Q, 0, cam_rotate_l);
+	state->input_bindings[ 9] = BindAction(KEY_E, 0, cam_rotate_r);
 
 	state->input_ctx = (i_ctx){
 		.bindings = (binding_t*)&state->input_bindings,
