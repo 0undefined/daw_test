@@ -5,9 +5,9 @@
 
 int main(void) {
 
-  Platform *p = engine_init("rogue",
+  Instance *p = engine_init("rogue",
       420, 420,
-      1.f, 0,
+      0,
       MEMORY_SIZE);
 
   //engine_fps_max(p, 10);
