@@ -43,7 +43,7 @@ enum blocktypes {
 #define WORLD_SZ_Y 4
 #define WORLD_SZ_Z 8
 
-static const f32 speed = 96.f;
+#define SPEED 96.f
 
 static f32 crate_texture_coords[36*2];
 static f32 crate[36*3];
@@ -74,23 +74,23 @@ ShaderBuffer shaderbuf_quad[] = {
 
 #define ACCELERATE( x, y, z ) \
   glm_vec3_add((vec3){x, y, z}, s->cam_acc, s->cam_acc)
-void move_cam_left(mainstate_state *s)       { ACCELERATE(-speed,    0,  0); }
-void move_cam_left_stop(mainstate_state *s)  { ACCELERATE(+speed,    0,  0); }
-void move_cam_right(mainstate_state *s)      { ACCELERATE( speed,    0,  0); }
-void move_cam_right_stop(mainstate_state *s) { ACCELERATE(-speed,    0,  0); }
-void move_cam_fwd(mainstate_state *s)        { ACCELERATE(     0,        0, -speed    ); }
-void move_cam_fwd_stop(mainstate_state *s)   { ACCELERATE(     0,        0, +speed    ); }
-void move_cam_bck(mainstate_state *s)        { ACCELERATE(     0,        0,  speed    ); }
-void move_cam_bck_stop(mainstate_state *s)   { ACCELERATE(     0,        0, -speed    ); }
+void move_cam_left(mainstate_state *s)       { ACCELERATE(-SPEED,    0,  0); }
+void move_cam_left_stop(mainstate_state *s)  { ACCELERATE(+SPEED,    0,  0); }
+void move_cam_right(mainstate_state *s)      { ACCELERATE( SPEED,    0,  0); }
+void move_cam_right_stop(mainstate_state *s) { ACCELERATE(-SPEED,    0,  0); }
+void move_cam_fwd(mainstate_state *s)        { ACCELERATE(     0,        0, -SPEED    ); }
+void move_cam_fwd_stop(mainstate_state *s)   { ACCELERATE(     0,        0, +SPEED    ); }
+void move_cam_bck(mainstate_state *s)        { ACCELERATE(     0,        0,  SPEED    ); }
+void move_cam_bck_stop(mainstate_state *s)   { ACCELERATE(     0,        0, -SPEED    ); }
 
-void move_cam_up(mainstate_state *s)         { ACCELERATE( 0,        speed,          0); }
-void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -speed,          0); }
-void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -speed,          0); }
-void move_cam_dwn_stop(mainstate_state *s)   { ACCELERATE( 0,       +speed,          0); }
+void move_cam_up(mainstate_state *s)         { ACCELERATE( 0,        SPEED,          0); }
+void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -SPEED,          0); }
+void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -SPEED,          0); }
+void move_cam_dwn_stop(mainstate_state *s)   { ACCELERATE( 0,       +SPEED,          0); }
 
 void perspective_update(mainstate_state *s) {
 #ifdef FOV_ORTHO
-  r_perspective_ortho(s->fov, &s->c);
+  r_perspective_ortho((float)s->fov, &s->c);
 #else
   r_perspective(s->fov, &s->c);
 #endif
@@ -117,8 +117,8 @@ void fov_decrement(mainstate_state *s) {
 }
 
 void cam_rotate_l(mainstate_state *s) {
-  s->cam_dir_dt = 0.300;
-  glm_vec3_rotate(s->cam_dir, 3.141 / 4., GLM_YUP);
+  s->cam_dir_dt = 0.300f;
+  glm_vec3_rotate(s->cam_dir, 3.141f / 4.f, GLM_YUP);
   //glm_rotate_at(s->c.per, s->cam_pos, 3.141 / 4., GLM_YUP);
   //glm_rotate(s->c.per, 1, GLM_YUP);
   //perspective_update(s);
@@ -129,8 +129,8 @@ void cam_rotate_l(mainstate_state *s) {
 }
 
 void cam_rotate_r(mainstate_state *s) {
-  s->cam_dir_dt = 0.300;
-  glm_vec3_rotate(s->cam_dir, -(3.141 / 4.), GLM_YUP);
+  s->cam_dir_dt = 0.300f;
+  glm_vec3_rotate(s->cam_dir, -(3.141f / 4.f), GLM_YUP);
   //glm_rotate(s->c.per, -(3.141 / 4.), GLM_YUP);
   //perspective_update(s);
     INFO("rotation: %.1f  %.1f  %.1f",
@@ -249,18 +249,29 @@ void mainstate_init(mainstate_state *state, void* arg) {
   }
 
   gen_terrain(state->world, WORLD_HEIGHT, WORLD_LENGTH, WORLD_WIDTH);
-  for (usize i = 0; i < WORLD_SIZE; i++) {
+  for (isize i = 0; i < WORLD_SIZE; i++) {
     if (state->world[i] == BLOCK_none) continue;
 
     const isize y = i / (WORLD_LENGTH * WORLD_WIDTH); // height
     const isize z = (i - (WORLD_LENGTH * WORLD_WIDTH * y)) / WORLD_WIDTH; // length
     const isize x = i % WORLD_WIDTH; // width
     Transform t = {
-      .position = {x * 2, y * 2, z * 2},
+      .position = {(float)x * 2, (float)y * 2, (float)z * 2},
     };
-    if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
-      ERROR("Failed to add model2 to render batch!");
-      exit(EXIT_FAILURE);
+    switch (state->world[i]) {
+      case BLOCK_grass:
+        if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
+          ERROR("Failed to add model 0 to render batch!");
+          exit(EXIT_FAILURE);
+        }
+        break;
+      case BLOCK_rock:
+        if (-1 == renderbatch_add(&(state->terrain), &(state->objects[1]), &t)) {
+          ERROR("Failed to add model 1 to render batch!");
+          exit(EXIT_FAILURE);
+        }
+        break;
+      default: break;
     }
   }
 
@@ -308,9 +319,8 @@ void* mainstate_free(mainstate_state *state) {
 
 StateType mainstate_update(f64 dt, mainstate_state *state) {
 	StateType next_state = STATE_null;
-
   // Convert to seconds
-  dt = dt / 1000000.0;
+  const f32 dsec = (float)(dt / 1000000.0);
 
   engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
   engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
@@ -319,13 +329,13 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
 
   // Move the camera
   // ... all of this should be easily selectable in the engine
-  const float friction = 1.f / (1.f + (dt * 7.5f));
+  const float friction = 1.f / (1.f + (dsec * 7.5f));
   vec3 acc;
   vec3 speed;
 
-  // Scale acceleration and speed by dt
-  glm_vec3_scale(state->cam_acc,   dt, acc);
-  glm_vec3_scale(state->cam_speed, dt, speed);
+  // Scale acceleration and speed by dsec
+  glm_vec3_scale(state->cam_acc,   dsec, acc);
+  glm_vec3_scale(state->cam_speed, dsec, speed);
 
   glm_vec3_add(acc,   speed, speed);
 
@@ -361,19 +371,20 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   glm_vec3_copy(state->cam_pos,  state->c.pos);
 
   // Rotate the camera
-  if (state->cam_dir_dt - dt > 0) {
+  if (state->cam_dir_dt - dsec > 0) {
     //Lerp: a + f * (b - a);
     // or:  a * (1-f) + f*b;
-    const f32 lerpduration = 0.300;
-    state->cam_dir_dt -= dt;
+    // 300ms
+    const f32 lerpduration = 0.300f;
+    state->cam_dir_dt -= dsec;
     vec3 a, b;
-    const f32 f = 1.0 - state->cam_dir_dt / lerpduration;
+    const f32 f = 1.f - state->cam_dir_dt / lerpduration;
     glm_vec3_copy(state->c.dir, a);
     glm_vec3_copy(state->cam_dir, b);
 
-    a[0] = a[0] * (1.0 - f) + f*b[0];
-    a[1] = a[1] * (1.0 - f) + f*b[1];
-    a[2] = a[2] * (1.0 - f) + f*b[2];
+    a[0] = a[0] * (1.f - f) + f*b[0];
+    a[1] = a[1] * (1.f - f) + f*b[1];
+    a[2] = a[2] * (1.f - f) + f*b[2];
 
     glm_vec3_copy(a, state->c.dir);
   }
@@ -381,7 +392,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   return next_state;
 }
 
-static const f32 px = 1. / 96.;
+static const f32 px = (float)(1. / 96.);
 
 static f32 quad[] = {
   -1.f, -1.f,
