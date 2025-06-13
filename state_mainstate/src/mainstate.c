@@ -46,8 +46,11 @@ enum blocktypes {
 #define SPEED 96.f
 
 static f32 crate_texture_coords[36*2];
+static f32 crate_texture_coords2[36*2];
 static f32 crate[36*3];
-static f32 crate_normals[36*2];
+//static f32 crate_normals[36*2];
+
+// TODO: Fix rendering positions on models with IBOs
 static f32 quad[8];
 static u16 quad_ibo[6];
 
@@ -58,12 +61,12 @@ static u16 quad_ibo[6];
 ShaderBuffer shaderbuf[] = {
   SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw | ShaderBuffer_Type_vertexPosition),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
-  SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
+  //SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
 };
 ShaderBuffer shaderbuf2[] = {
   SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw | ShaderBuffer_Type_vertexPosition),
-  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
-  SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords2), 2, crate_texture_coords2, staticdraw),
+  //SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
 };
 ShaderBuffer shaderbuf_quad[] = {
   SHADERBUFFER_NEW(f32, COUNT(quad),                2, quad,                  staticdraw | ShaderBuffer_Type_vertexPosition),
@@ -164,7 +167,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
       [MyDitherFragShader] = Declare_Shader("resources/dither.frag"),
       [MyDitherShader] = Declare_ShaderProgram(
           dither_shader, sizeof(dither_shader) / sizeof(dither_shader[0])),
-      [MyTexture] = Declare_Texture("resources/texture.png"),
+      [MyTexture] = Declare_Texture("resources/atlas.png"),
       [MyGrass] = Declare_Texture("resources/grass.png"),
       [MyStone] = Declare_Texture("resources/stone.png"),
 
@@ -216,10 +219,10 @@ void mainstate_init(mainstate_state *state, void* arg) {
   // Use the same mesh & UV
   state->objects[0] = RenderObject_new(
       // Shader
-      get_asset(&state->resources, MyDitherShader),
+      get_asset(&state->resources, MyDefaultShader),
       // Texture
-      ((Texture*)get_asset(&state->resources, MyStone))->id,
-      // Vertices
+      ((Texture*)get_asset(&state->resources, MyTexture))->id,
+      // Shader
       shaderbuf,
       sizeof(shaderbuf) / sizeof(ShaderBuffer)
       );
@@ -227,8 +230,8 @@ void mainstate_init(mainstate_state *state, void* arg) {
       // Shader
       get_asset(&state->resources, MyDefaultShader),
       // Texture
-      ((Texture*)get_asset(&state->resources, MyGrass))->id,
-      // Vertices
+      ((Texture*)get_asset(&state->resources, MyTexture))->id,
+      // Shader, using the other UVs
       shaderbuf2,
       sizeof(shaderbuf2) / sizeof(ShaderBuffer)
       );
@@ -279,9 +282,9 @@ void mainstate_init(mainstate_state *state, void* arg) {
   renderbatch_refresh(&(state->terrain));
   state->terrain.renderobj = RenderObject_new(
       // Shader
-      get_asset(&state->resources, MyDitherShader),
+      get_asset(&state->resources, MyDefaultShader),
       // Texture
-      ((Texture*)get_asset(&state->resources, MyGrass))->id,
+      ((Texture*)get_asset(&state->resources, MyTexture))->id,
       // Vertices
       state->terrain.renderobj.buffer,
       state->terrain.renderobj.buffer_len
@@ -323,7 +326,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   const f32 dsec = (float)(dt / 1000000.0);
 
   engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
-  engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
+  //engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
   //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
   //engine_draw_model(&(state->objects[1]), (vec3){0,0,0});
 
@@ -410,125 +413,188 @@ static f32 crate_texture_coords[] = {
     // BEHIND 0
     49.f*px, 1.0f,
     65.f*px, 1.0f,
-    65.f*px, 0.0f,
+    65.f*px, 0.5f,
 
     // REAL LEFT 0
-    33.f*px, 0.0f,
+    33.f*px, 0.5f,
     49.f*px, 1.0f,
-    49.f*px, 0.0f,
+    49.f*px, 0.5f,
 
     // BOTTOM 0
-    81.f*px, 0.f,
-    96.f*px, 1.f,
-    96.f*px, 0.f,
+    81.f*px, 0.5f,
+    96.f*px, 1.0f,
+    96.f*px, 0.5f,
 
     // REAL LEFT 1
-    33.f*px, 0.0f,
+    33.f*px, 0.5f,
     33.f*px, 1.0f,
     49.f*px, 1.0f,
 
     // BEHIND 1
     49.f*px, 1.0f,
-    65.f*px, 0.0f,
-    49.f*px, 0.0f,
+    65.f*px, 0.5f,
+    49.f*px, 0.5f,
 
     // BOTTOM 1
-    81.f*px, 0.f,
-    81.f*px, 1.f,
-    96.f*px, 1.f,
+    81.f*px, 0.5f,
+    81.f*px, 1.0f,
+    96.f*px, 1.0f,
 
     // LEFT 0
-    0.0f, 0.0f,
-    0.0f, 1.0f,
+    0.0f,    0.5f,
+    0.0f,    1.0f,
     17.f*px, 1.0f,
 
     // RIGHT 0
-    17.f*px, 0.0f,
+    17.f*px, 0.5f,
     33.f*px, 1.0f,
-    33.f*px, 0.0f,
+    33.f*px, 0.5f,
 
     // RIGHT 1
     33.f*px, 1.0f,
-    17.f*px, 0.0f,
+    17.f*px, 0.5f,
     17.f*px, 1.0f,
 
     // TOP 0
     80.f*px, 1.0f,
     65.f*px, 1.0f,
-    65.f*px, 0.0f,
+    65.f*px, 0.5f,
 
     // TOP 1
-    65.f*px, 1.f,
-    80.f*px, 0.f,
-    65.f*px, 0.f,
+    65.f*px, 1.0f,
+    80.f*px, 0.5f,
+    65.f*px, 0.5f,
 
     // LEFT 1
-    17.f*px, 0.0f,
-     0.f*px, 0.0f,
+    17.f*px, 0.5f,
+     0.f*px, 0.5f,
     17.f*px, 1.0f,
 };
 
-static f32 crate_normals[] = {
+
+static f32 crate_texture_coords2[] = {
     // BEHIND 0
-    49.f*px, 1.0f,
-    65.f*px, 1.0f,
+    49.f*px, 0.5f,
+    65.f*px, 0.5f,
     65.f*px, 0.0f,
 
     // REAL LEFT 0
     33.f*px, 0.0f,
-    49.f*px, 1.0f,
+    49.f*px, 0.5f,
     49.f*px, 0.0f,
 
     // BOTTOM 0
-    81*px, 0,
-    96*px, 1,
-    96*px, 0,
+    81.f*px, 0.0f,
+    96.f*px, 0.5f,
+    96.f*px, 0.0f,
 
     // REAL LEFT 1
     33.f*px, 0.0f,
-    33.f*px, 1.0f,
-    49.f*px, 1.0f,
+    33.f*px, 0.5f,
+    49.f*px, 0.5f,
 
     // BEHIND 1
-    49.f*px, 1.0f,
+    49.f*px, 0.5f,
     65.f*px, 0.0f,
     49.f*px, 0.0f,
 
     // BOTTOM 1
-    81*px, 0,
-    81*px, 1,
-    96*px, 1,
+    81.f*px, 0.0f,
+    81.f*px, 0.5f,
+    96.f*px, 0.5f,
 
     // LEFT 0
-    0.0f, 0.0f,
-    0.0f, 1.0f,
-    17.f*px, 1.0f,
+    0.0f,    0.0f,
+    0.0f,    0.5f,
+    17.f*px, 0.5f,
 
     // RIGHT 0
     17.f*px, 0.0f,
-    33.f*px, 1.0f,
+    33.f*px, 0.5f,
     33.f*px, 0.0f,
 
     // RIGHT 1
-    33.f*px, 1.0f,
+    33.f*px, 0.5f,
     17.f*px, 0.0f,
-    17.f*px, 1.0f,
+    17.f*px, 0.5f,
 
     // TOP 0
-    80.f*px, 1.0f,
-    65.f*px, 1.0f,
+    80.f*px, 0.5f,
+    65.f*px, 0.5f,
     65.f*px, 0.0f,
 
     // TOP 1
-    65.f*px, 1.f,
-    80.f*px, 0.f,
-    65.f*px, 0.f,
+    65.f*px, 0.5f,
+    80.f*px, 0.0f,
+    65.f*px, 0.0f,
 
     // LEFT 1
     17.f*px, 0.0f,
      0.f*px, 0.0f,
-    17.f*px, 1.0f,
+    17.f*px, 0.5f,
 };
+
+//static f32 crate_normals[] = {
+//    // BEHIND 0
+//    49.f*px, 1.0f,
+//    65.f*px, 1.0f,
+//    65.f*px, 0.0f,
+//
+//    // REAL LEFT 0
+//    33.f*px, 0.0f,
+//    49.f*px, 1.0f,
+//    49.f*px, 0.0f,
+//
+//    // BOTTOM 0
+//    81*px, 0,
+//    96*px, 1,
+//    96*px, 0,
+//
+//    // REAL LEFT 1
+//    33.f*px, 0.0f,
+//    33.f*px, 1.0f,
+//    49.f*px, 1.0f,
+//
+//    // BEHIND 1
+//    49.f*px, 1.0f,
+//    65.f*px, 0.0f,
+//    49.f*px, 0.0f,
+//
+//    // BOTTOM 1
+//    81*px, 0,
+//    81*px, 1,
+//    96*px, 1,
+//
+//    // LEFT 0
+//    0.0f, 0.0f,
+//    0.0f, 1.0f,
+//    17.f*px, 1.0f,
+//
+//    // RIGHT 0
+//    17.f*px, 0.0f,
+//    33.f*px, 1.0f,
+//    33.f*px, 0.0f,
+//
+//    // RIGHT 1
+//    33.f*px, 1.0f,
+//    17.f*px, 0.0f,
+//    17.f*px, 1.0f,
+//
+//    // TOP 0
+//    80.f*px, 1.0f,
+//    65.f*px, 1.0f,
+//    65.f*px, 0.0f,
+//
+//    // TOP 1
+//    65.f*px, 1.f,
+//    80.f*px, 0.f,
+//    65.f*px, 0.f,
+//
+//    // LEFT 1
+//    17.f*px, 0.0f,
+//     0.f*px, 0.0f,
+//    17.f*px, 1.0f,
+//};
 
 static f32 crate[] = {
   -1.0f, -1.0f, -1.0f, // triangle 1 : begin
