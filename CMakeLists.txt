@@ -15,7 +15,7 @@ set(CMAKE_DISABLE_SOURCE_CHANGES ON CACHE BOOL "Prevent writing files to CMAKE_S
 
 FetchContent_Declare(daw
   GIT_REPOSITORY https://codeberg.org/onelin/daw.git
-  GIT_TAG glfw
+  GIT_TAG master
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
