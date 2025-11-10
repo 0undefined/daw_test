@@ -48,7 +48,7 @@ enum blocktypes {
 static f32 crate_texture_coords[36*2];
 static f32 crate_texture_coords2[36*2];
 static f32 crate[36*3];
-//static f32 crate_normals[36*2];
+static f32 crate_normals[36*3];
 
 // TODO: Fix rendering positions on models with IBOs
 static f32 quad[8];
@@ -57,16 +57,19 @@ static u16 quad_ibo[6];
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 /* this is an unfortunate way of declaring this, unfortunately we _really_ don't
  * want to force compile-time known sizes of the data */
+/* The order here matters tremendously, as they're passed to the shader pipeline
+ * in the same order. I've wasted many hours due to IBO being passed before
+ * other data:) */
 #define staticdraw ShaderBuffer_AccessFrequency_static | ShaderBuffer_AccessType_draw
 ShaderBuffer shaderbuf[] = {
   SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw | ShaderBuffer_Type_vertexPosition),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords), 2, crate_texture_coords, staticdraw),
-  //SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals),        3, crate_normals,        staticdraw),
 };
 ShaderBuffer shaderbuf2[] = {
-  SHADERBUFFER_NEW(f32, COUNT(crate),                3, crate,                staticdraw | ShaderBuffer_Type_vertexPosition),
+  SHADERBUFFER_NEW(f32, COUNT(crate),                 3, crate,                 staticdraw | ShaderBuffer_Type_vertexPosition),
   SHADERBUFFER_NEW(f32, COUNT(crate_texture_coords2), 2, crate_texture_coords2, staticdraw),
-  //SHADERBUFFER_NEW(f32, COUNT(crate_normals),        2, crate_normals,        staticdraw),
+  SHADERBUFFER_NEW(f32, COUNT(crate_normals),         3, crate_normals,         staticdraw),
 };
 ShaderBuffer shaderbuf_quad[] = {
   SHADERBUFFER_NEW(f32, COUNT(quad),                2, quad,                  staticdraw | ShaderBuffer_Type_vertexPosition),
@@ -119,8 +122,10 @@ void fov_decrement(mainstate_state *s) {
   perspective_update(s);
 }
 
+static const float cam_transition_dt = 0.8f;
+
 void cam_rotate_l(mainstate_state *s) {
-  s->cam_dir_dt = 0.300f;
+  s->cam_dir_dt = cam_transition_dt;
   glm_vec3_rotate(s->cam_dir, 3.141f / 4.f, GLM_YUP);
   //glm_rotate_at(s->c.per, s->cam_pos, 3.141 / 4., GLM_YUP);
   //glm_rotate(s->c.per, 1, GLM_YUP);
@@ -132,7 +137,7 @@ void cam_rotate_l(mainstate_state *s) {
 }
 
 void cam_rotate_r(mainstate_state *s) {
-  s->cam_dir_dt = 0.300f;
+  s->cam_dir_dt = cam_transition_dt;
   glm_vec3_rotate(s->cam_dir, -(3.141f / 4.f), GLM_YUP);
   //glm_rotate(s->c.per, -(3.141 / 4.), GLM_YUP);
   //perspective_update(s);
@@ -149,10 +154,31 @@ void mainstate_init(mainstate_state *state, void* arg) {
     INFO("Arg was not null!");
   }
 
+  // ----------- Calculate normals TODO MOVE TO ENGINE
+  for (usize i = 0; i < sizeof(crate) / sizeof(crate[0]) / 3; i++) {
+    // Face index
+    const usize f = i / 3;
+    // Face offset
+    const usize offset = f * 9; // 3 floats pr. vertex, 3 vertices per face.
+    vec3 A, B, C;
+    glm_vec3_copy(&crate[offset + ((i + 0) % 3) * 3], A);
+    glm_vec3_copy(&crate[offset + ((i + 1) % 3) * 3], B);
+    glm_vec3_copy(&crate[offset + ((i + 2) % 3) * 3], C);
+
+    // We could allocate vec3's for AB, AC, and the norm, but this is more memory friendly:)
+    glm_vec3_sub(A,B,B);
+    glm_vec3_sub(A,C,C);
+
+    glm_vec3_cross(B,C,A);
+    glm_vec3_normalize(A);
+
+    glm_vec3_copy(A, &crate_normals[i * 3]);
+  }
+
   // Use the INDICES of the assets to specify the shaders to be composed
   static u32 default_shader[] = {MyVertexShader, MyFragmentShader};
   static u32 dither_shader[]  = {MyVertexShader, MyDitherFragShader};
-  static u32 quad_shader[]  =   {MyQuadVertexShader, MyQuadFragShader};
+  static u32 quad_shader[]    = {MyQuadVertexShader, MyQuadFragShader};
 
   /* 0. Declare resources */
   static asset_t mainstate_assets[] = {
@@ -239,7 +265,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
       // Shader
       get_asset(&state->resources, MyQuadShader),
       // Texture
-      0,
+      ((Texture*)get_asset(&state->resources, MyQuadTexture))->id,
       // Vertices
       shaderbuf_quad,
       sizeof(shaderbuf_quad) / sizeof(ShaderBuffer)
@@ -377,11 +403,9 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   if (state->cam_dir_dt - dsec > 0) {
     //Lerp: a + f * (b - a);
     // or:  a * (1-f) + f*b;
-    // 300ms
-    const f32 lerpduration = 0.300f;
     state->cam_dir_dt -= dsec;
     vec3 a, b;
-    const f32 f = 1.f - state->cam_dir_dt / lerpduration;
+    const f32 f = 1.f - state->cam_dir_dt / cam_transition_dt;
     glm_vec3_copy(state->c.dir, a);
     glm_vec3_copy(state->cam_dir, b);
 
@@ -534,103 +558,41 @@ static f32 crate_texture_coords2[] = {
     17.f*px, 0.5f,
 };
 
-//static f32 crate_normals[] = {
-//    // BEHIND 0
-//    49.f*px, 1.0f,
-//    65.f*px, 1.0f,
-//    65.f*px, 0.0f,
-//
-//    // REAL LEFT 0
-//    33.f*px, 0.0f,
-//    49.f*px, 1.0f,
-//    49.f*px, 0.0f,
-//
-//    // BOTTOM 0
-//    81*px, 0,
-//    96*px, 1,
-//    96*px, 0,
-//
-//    // REAL LEFT 1
-//    33.f*px, 0.0f,
-//    33.f*px, 1.0f,
-//    49.f*px, 1.0f,
-//
-//    // BEHIND 1
-//    49.f*px, 1.0f,
-//    65.f*px, 0.0f,
-//    49.f*px, 0.0f,
-//
-//    // BOTTOM 1
-//    81*px, 0,
-//    81*px, 1,
-//    96*px, 1,
-//
-//    // LEFT 0
-//    0.0f, 0.0f,
-//    0.0f, 1.0f,
-//    17.f*px, 1.0f,
-//
-//    // RIGHT 0
-//    17.f*px, 0.0f,
-//    33.f*px, 1.0f,
-//    33.f*px, 0.0f,
-//
-//    // RIGHT 1
-//    33.f*px, 1.0f,
-//    17.f*px, 0.0f,
-//    17.f*px, 1.0f,
-//
-//    // TOP 0
-//    80.f*px, 1.0f,
-//    65.f*px, 1.0f,
-//    65.f*px, 0.0f,
-//
-//    // TOP 1
-//    65.f*px, 1.f,
-//    80.f*px, 0.f,
-//    65.f*px, 0.f,
-//
-//    // LEFT 1
-//    17.f*px, 0.0f,
-//     0.f*px, 0.0f,
-//    17.f*px, 1.0f,
-//};
-
 static f32 crate[] = {
-  -1.0f, -1.0f, -1.0f, // triangle 1 : begin
+  -1.0f, -1.0f, -1.0f, // 1 -x
   -1.0f, -1.0f,  1.0f,
-  -1.0f,  1.0f,  1.0f, // triangle 1 : end
-  1.0f,  1.0f, -1.0f, // triangle 2 : begin
+  -1.0f,  1.0f,  1.0f,
+   1.0f,  1.0f, -1.0f, // 2 -z
   -1.0f, -1.0f, -1.0f,
-  -1.0f,  1.0f, -1.0f, // triangle 2 : end
-  1.0f, -1.0f,  1.0f,
+  -1.0f,  1.0f, -1.0f,
+   1.0f, -1.0f,  1.0f, // 3 down
   -1.0f, -1.0f, -1.0f,
-  1.0f, -1.0f, -1.0f,
-  1.0f,  1.0f, -1.0f,
-  1.0f, -1.0f, -1.0f,
+   1.0f, -1.0f, -1.0f,
+   1.0f,  1.0f, -1.0f, // 4 -z
+   1.0f, -1.0f, -1.0f,
   -1.0f, -1.0f, -1.0f,
-  -1.0f, -1.0f, -1.0f,
+  -1.0f, -1.0f, -1.0f, // 5 -x
   -1.0f,  1.0f,  1.0f,
   -1.0f,  1.0f, -1.0f,
-  1.0f, -1.0f,  1.0f,
+   1.0f, -1.0f,  1.0f, // 6 down
   -1.0f, -1.0f,  1.0f,
   -1.0f, -1.0f, -1.0f,
-  -1.0f,  1.0f,  1.0f,
+  -1.0f,  1.0f,  1.0f, // 7 +z
   -1.0f, -1.0f,  1.0f,
-  1.0f, -1.0f,  1.0f,
-  1.0f,  1.0f,  1.0f,
-  1.0f, -1.0f, -1.0f,
-  1.0f,  1.0f, -1.0f,
-  1.0f, -1.0f, -1.0f,
-  1.0f,  1.0f,  1.0f,
-  1.0f, -1.0f,  1.0f,
-  1.0f,  1.0f,  1.0f,
-  1.0f,  1.0f, -1.0f,
+   1.0f, -1.0f,  1.0f,
+   1.0f,  1.0f,  1.0f, // 8 +x
+   1.0f, -1.0f, -1.0f,
+   1.0f,  1.0f, -1.0f,
+   1.0f, -1.0f, -1.0f, // 9 +x
+   1.0f,  1.0f,  1.0f,
+   1.0f, -1.0f,  1.0f,
+   1.0f,  1.0f,  1.0f, // 10 up
+   1.0f,  1.0f, -1.0f,
   -1.0f,  1.0f, -1.0f,
-  1.0f,  1.0f,  1.0f,
+   1.0f,  1.0f,  1.0f, // 11 up
   -1.0f,  1.0f, -1.0f,
   -1.0f,  1.0f,  1.0f,
-  1.0f,  1.0f,  1.0f,
+   1.0f,  1.0f,  1.0f, // 12 +z
   -1.0f,  1.0f,  1.0f,
-  1.0f, -1.0f,  1.0f
+   1.0f, -1.0f,  1.0f
 };

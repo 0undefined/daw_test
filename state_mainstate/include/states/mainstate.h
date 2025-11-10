@@ -20,7 +20,7 @@ typedef struct mainstate_state {
   RenderBatch  terrain;
   RenderObject objects[10];
   u8 world[WORLD_HEIGHT * WORLD_WIDTH * WORLD_LENGTH];
-	i_ctx input_ctx;
+  i_ctx input_ctx;
   binding_t input_bindings[10];
   vec3 cam_dir;
   f32 cam_dir_dt;
