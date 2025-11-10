@@ -25,6 +25,7 @@ enum GameResources {
   MyDitherFragShader,
   MyDitherShader,
   MyTexture,
+  MyQuadTexture,
   MyGrass,
   MyStone,
 
@@ -53,6 +54,7 @@ static f32 crate_normals[36*3];
 // TODO: Fix rendering positions on models with IBOs
 static f32 quad[8];
 static u16 quad_ibo[6];
+static f32 quad_uv[8];
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 /* this is an unfortunate way of declaring this, unfortunately we _really_ don't
@@ -72,8 +74,9 @@ ShaderBuffer shaderbuf2[] = {
   SHADERBUFFER_NEW(f32, COUNT(crate_normals),         3, crate_normals,         staticdraw),
 };
 ShaderBuffer shaderbuf_quad[] = {
-  SHADERBUFFER_NEW(f32, COUNT(quad),                2, quad,                  staticdraw | ShaderBuffer_Type_vertexPosition),
-  SHADERBUFFER_NEW(u16, COUNT(quad_ibo),            3, quad_ibo,              staticdraw | ShaderBuffer_Type_vertexIndex),
+  SHADERBUFFER_NEW(f32, COUNT(quad),     2, quad,     staticdraw | ShaderBuffer_Type_vertexPosition),
+  SHADERBUFFER_NEW(f32, COUNT(quad_uv),  2, quad_uv,  staticdraw),
+  SHADERBUFFER_NEW(u16, COUNT(quad_ibo), 3, quad_ibo, staticdraw | ShaderBuffer_Type_vertexIndex),
 };
 #undef COUNT
 
@@ -194,6 +197,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
       [MyDitherShader] = Declare_ShaderProgram(
           dither_shader, sizeof(dither_shader) / sizeof(dither_shader[0])),
       [MyTexture] = Declare_Texture("resources/atlas.png"),
+      [MyQuadTexture] = Declare_Texture("resources/quad.png"),
       [MyGrass] = Declare_Texture("resources/grass.png"),
       [MyStone] = Declare_Texture("resources/stone.png"),
 
@@ -277,7 +281,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
     exit(EXIT_FAILURE);
   }
 
-  gen_terrain(state->world, WORLD_HEIGHT, WORLD_LENGTH, WORLD_WIDTH);
+  gen_terrain(state->world, WORLD_HEIGHT/2, WORLD_LENGTH, WORLD_WIDTH);
   for (isize i = 0; i < WORLD_SIZE; i++) {
     if (state->world[i] == BLOCK_none) continue;
 
@@ -431,6 +435,13 @@ static f32 quad[] = {
 static u16 quad_ibo[] = {
   0, 1, 2,
   2, 3, 0,
+};
+
+static f32 quad_uv[] = {
+  0.f,  0.f,
+  1.f,  0.f,
+  1.f,  1.f,
+  0.f,  1.f,
 };
 
 static f32 crate_texture_coords[] = {
