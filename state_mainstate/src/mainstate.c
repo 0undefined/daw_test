@@ -5,6 +5,7 @@
 #include <states/mainstate.h>
 #include <daw/state.h>
 #include <worldgen.h>
+#include <crate.h>
 
 #define FOV_ORTHO 1
 
@@ -40,21 +41,8 @@ enum blocktypes {
   Block_stone,
 };
 
-#define WORLD_SZ_X 8
-#define WORLD_SZ_Y 4
-#define WORLD_SZ_Z 8
-
 #define SPEED 96.f
-
-static f32 crate_texture_coords[36*2];
-static f32 crate_texture_coords2[36*2];
-static f32 crate[36*3];
-static f32 crate_normals[36*3];
-
-// TODO: Fix rendering positions on models with IBOs
-static f32 quad[8];
-static u16 quad_ibo[6];
-static f32 quad_uv[8];
+#define CAM_TRANSITION_DT 0.8f
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 /* this is an unfortunate way of declaring this, unfortunately we _really_ don't
@@ -125,10 +113,8 @@ void fov_decrement(mainstate_state *s) {
   perspective_update(s);
 }
 
-static const float cam_transition_dt = 0.8f;
-
 void cam_rotate_l(mainstate_state *s) {
-  s->cam_dir_dt = cam_transition_dt;
+  s->cam_dir_dt = CAM_TRANSITION_DT;
   glm_vec3_rotate(s->cam_dir, 3.141f / 4.f, GLM_YUP);
   //glm_rotate_at(s->c.per, s->cam_pos, 3.141 / 4., GLM_YUP);
   //glm_rotate(s->c.per, 1, GLM_YUP);
@@ -140,7 +126,7 @@ void cam_rotate_l(mainstate_state *s) {
 }
 
 void cam_rotate_r(mainstate_state *s) {
-  s->cam_dir_dt = cam_transition_dt;
+  s->cam_dir_dt = CAM_TRANSITION_DT;
   glm_vec3_rotate(s->cam_dir, -(3.141f / 4.f), GLM_YUP);
   //glm_rotate(s->c.per, -(3.141 / 4.), GLM_YUP);
   //perspective_update(s);
@@ -209,13 +195,10 @@ void mainstate_init(mainstate_state *state, void* arg) {
 
   /// Setup the camera
   // Set the position (it is zero initialized)
-  //glm_vec3_copy((vec3){4,3,4}, state->c.pos);
-  glm_vec3_copy((vec3){WORLD_WIDTH / 2.f, WORLD_HEIGHT / 2.f + 4.f, WORLD_LENGTH / 2.f}, state->c.pos);
+  glm_vec3_copy((vec3){WORLD_WIDTH / 2.f, WORLD_HEIGHT / 4.f + 4.f, WORLD_LENGTH / 2.f}, state->c.pos);
 
   // Copy to the desired position
   glm_vec3_copy(state->c.pos, state->cam_pos);
-  //glm_vec3_copy((vec3){0,0,0}, state->cam_speed);
-  //glm_vec3_copy((vec3){0,0,0}, state->cam_acc);
 
   // Field of view
   state->fov = FOV_MIN + 2 * FOV_INC;
@@ -289,7 +272,7 @@ void mainstate_init(mainstate_state *state, void* arg) {
     const isize z = (i - (WORLD_LENGTH * WORLD_WIDTH * y)) / WORLD_WIDTH; // length
     const isize x = i % WORLD_WIDTH; // width
     Transform t = {
-      .position = {(float)x * 2, (float)y * 2, (float)z * 2},
+      .position = {(float)x, (float)y, (float)z},
     };
     switch (state->world[i]) {
       case BLOCK_grass:
@@ -355,6 +338,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
   // Convert to seconds
   const f32 dsec = (float)(dt / 1000000.0);
 
+  //extern Instance* p;
   engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
   //engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
   //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
@@ -409,7 +393,7 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
     // or:  a * (1-f) + f*b;
     state->cam_dir_dt -= dsec;
     vec3 a, b;
-    const f32 f = 1.f - state->cam_dir_dt / cam_transition_dt;
+    const f32 f = 1.f - state->cam_dir_dt / CAM_TRANSITION_DT;
     glm_vec3_copy(state->c.dir, a);
     glm_vec3_copy(state->cam_dir, b);
 
@@ -422,188 +406,3 @@ StateType mainstate_update(f64 dt, mainstate_state *state) {
 
   return next_state;
 }
-
-static const f32 px = (float)(1. / 96.);
-
-static f32 quad[] = {
-  -1.f, -1.f,
-   1.f, -1.f,
-   1.f,  1.f,
-  -1.f,  1.f,
-};
-
-static u16 quad_ibo[] = {
-  0, 1, 2,
-  2, 3, 0,
-};
-
-static f32 quad_uv[] = {
-  0.f,  0.f,
-  1.f,  0.f,
-  1.f,  1.f,
-  0.f,  1.f,
-};
-
-static f32 crate_texture_coords[] = {
-    // BEHIND 0
-    49.f*px, 1.0f,
-    65.f*px, 1.0f,
-    65.f*px, 0.5f,
-
-    // REAL LEFT 0
-    33.f*px, 0.5f,
-    49.f*px, 1.0f,
-    49.f*px, 0.5f,
-
-    // BOTTOM 0
-    81.f*px, 0.5f,
-    96.f*px, 1.0f,
-    96.f*px, 0.5f,
-
-    // REAL LEFT 1
-    33.f*px, 0.5f,
-    33.f*px, 1.0f,
-    49.f*px, 1.0f,
-
-    // BEHIND 1
-    49.f*px, 1.0f,
-    65.f*px, 0.5f,
-    49.f*px, 0.5f,
-
-    // BOTTOM 1
-    81.f*px, 0.5f,
-    81.f*px, 1.0f,
-    96.f*px, 1.0f,
-
-    // LEFT 0
-    0.0f,    0.5f,
-    0.0f,    1.0f,
-    17.f*px, 1.0f,
-
-    // RIGHT 0
-    17.f*px, 0.5f,
-    33.f*px, 1.0f,
-    33.f*px, 0.5f,
-
-    // RIGHT 1
-    33.f*px, 1.0f,
-    17.f*px, 0.5f,
-    17.f*px, 1.0f,
-
-    // TOP 0
-    80.f*px, 1.0f,
-    65.f*px, 1.0f,
-    65.f*px, 0.5f,
-
-    // TOP 1
-    65.f*px, 1.0f,
-    80.f*px, 0.5f,
-    65.f*px, 0.5f,
-
-    // LEFT 1
-    17.f*px, 0.5f,
-     0.f*px, 0.5f,
-    17.f*px, 1.0f,
-};
-
-
-static f32 crate_texture_coords2[] = {
-    // BEHIND 0
-    49.f*px, 0.5f,
-    65.f*px, 0.5f,
-    65.f*px, 0.0f,
-
-    // REAL LEFT 0
-    33.f*px, 0.0f,
-    49.f*px, 0.5f,
-    49.f*px, 0.0f,
-
-    // BOTTOM 0
-    81.f*px, 0.0f,
-    96.f*px, 0.5f,
-    96.f*px, 0.0f,
-
-    // REAL LEFT 1
-    33.f*px, 0.0f,
-    33.f*px, 0.5f,
-    49.f*px, 0.5f,
-
-    // BEHIND 1
-    49.f*px, 0.5f,
-    65.f*px, 0.0f,
-    49.f*px, 0.0f,
-
-    // BOTTOM 1
-    81.f*px, 0.0f,
-    81.f*px, 0.5f,
-    96.f*px, 0.5f,
-
-    // LEFT 0
-    0.0f,    0.0f,
-    0.0f,    0.5f,
-    17.f*px, 0.5f,
-
-    // RIGHT 0
-    17.f*px, 0.0f,
-    33.f*px, 0.5f,
-    33.f*px, 0.0f,
-
-    // RIGHT 1
-    33.f*px, 0.5f,
-    17.f*px, 0.0f,
-    17.f*px, 0.5f,
-
-    // TOP 0
-    80.f*px, 0.5f,
-    65.f*px, 0.5f,
-    65.f*px, 0.0f,
-
-    // TOP 1
-    65.f*px, 0.5f,
-    80.f*px, 0.0f,
-    65.f*px, 0.0f,
-
-    // LEFT 1
-    17.f*px, 0.0f,
-     0.f*px, 0.0f,
-    17.f*px, 0.5f,
-};
-
-static f32 crate[] = {
-  -1.0f, -1.0f, -1.0f, // 1 -x
-  -1.0f, -1.0f,  1.0f,
-  -1.0f,  1.0f,  1.0f,
-   1.0f,  1.0f, -1.0f, // 2 -z
-  -1.0f, -1.0f, -1.0f,
-  -1.0f,  1.0f, -1.0f,
-   1.0f, -1.0f,  1.0f, // 3 down
-  -1.0f, -1.0f, -1.0f,
-   1.0f, -1.0f, -1.0f,
-   1.0f,  1.0f, -1.0f, // 4 -z
-   1.0f, -1.0f, -1.0f,
-  -1.0f, -1.0f, -1.0f,
-  -1.0f, -1.0f, -1.0f, // 5 -x
-  -1.0f,  1.0f,  1.0f,
-  -1.0f,  1.0f, -1.0f,
-   1.0f, -1.0f,  1.0f, // 6 down
-  -1.0f, -1.0f,  1.0f,
-  -1.0f, -1.0f, -1.0f,
-  -1.0f,  1.0f,  1.0f, // 7 +z
-  -1.0f, -1.0f,  1.0f,
-   1.0f, -1.0f,  1.0f,
-   1.0f,  1.0f,  1.0f, // 8 +x
-   1.0f, -1.0f, -1.0f,
-   1.0f,  1.0f, -1.0f,
-   1.0f, -1.0f, -1.0f, // 9 +x
-   1.0f,  1.0f,  1.0f,
-   1.0f, -1.0f,  1.0f,
-   1.0f,  1.0f,  1.0f, // 10 up
-   1.0f,  1.0f, -1.0f,
-  -1.0f,  1.0f, -1.0f,
-   1.0f,  1.0f,  1.0f, // 11 up
-  -1.0f,  1.0f, -1.0f,
-  -1.0f,  1.0f,  1.0f,
-   1.0f,  1.0f,  1.0f, // 12 +z
-  -1.0f,  1.0f,  1.0f,
-   1.0f, -1.0f,  1.0f
-};

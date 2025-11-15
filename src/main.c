@@ -3,9 +3,11 @@
 
 #define MEMORY_SIZE 65536
 
+Instance *p = NULL;
+
 int main(void) {
 
-  Instance *p = engine_init("rogue",
+  p = engine_init("rogue",
       420, 420,
       0,
       MEMORY_SIZE);
