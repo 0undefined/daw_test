@@ -28,35 +28,30 @@ static f32 crate_texture_coords[36*2] = {
     65.f*px, 1.0f,
     65.f*px, 0.5f,
 
+    // BEHIND 1
+    49.f*px, 1.0f,
+    65.f*px, 0.5f,
+    49.f*px, 0.5f,
+
     // REAL LEFT 0
     33.f*px, 0.5f,
     49.f*px, 1.0f,
     49.f*px, 0.5f,
-
-    // BOTTOM 0
-    81.f*px, 0.5f,
-    96.f*px, 1.0f,
-    96.f*px, 0.5f,
 
     // REAL LEFT 1
     33.f*px, 0.5f,
     33.f*px, 1.0f,
     49.f*px, 1.0f,
 
-    // BEHIND 1
-    49.f*px, 1.0f,
-    65.f*px, 0.5f,
-    49.f*px, 0.5f,
+    // BOTTOM 0
+    81.f*px, 0.5f,
+    96.f*px, 1.0f,
+    96.f*px, 0.5f,
 
     // BOTTOM 1
     81.f*px, 0.5f,
     81.f*px, 1.0f,
     96.f*px, 1.0f,
-
-    // LEFT 0
-    0.0f,    0.5f,
-    0.0f,    1.0f,
-    17.f*px, 1.0f,
 
     // RIGHT 0
     17.f*px, 0.5f,
@@ -78,6 +73,11 @@ static f32 crate_texture_coords[36*2] = {
     80.f*px, 0.5f,
     65.f*px, 0.5f,
 
+    // LEFT 0
+    0.0f,    0.5f,
+    0.0f,    1.0f,
+    17.f*px, 1.0f,
+
     // LEFT 1
     17.f*px, 0.5f,
      0.f*px, 0.5f,
@@ -91,35 +91,30 @@ static f32 crate_texture_coords2[36*2] = {
     65.f*px, 0.5f,
     65.f*px, 0.0f,
 
+    // BEHIND 1
+    49.f*px, 0.5f,
+    65.f*px, 0.0f,
+    49.f*px, 0.0f,
+
     // REAL LEFT 0
     33.f*px, 0.0f,
     49.f*px, 0.5f,
     49.f*px, 0.0f,
-
-    // BOTTOM 0
-    81.f*px, 0.0f,
-    96.f*px, 0.5f,
-    96.f*px, 0.0f,
 
     // REAL LEFT 1
     33.f*px, 0.0f,
     33.f*px, 0.5f,
     49.f*px, 0.5f,
 
-    // BEHIND 1
-    49.f*px, 0.5f,
-    65.f*px, 0.0f,
-    49.f*px, 0.0f,
+    // BOTTOM 0
+    81.f*px, 0.0f,
+    96.f*px, 0.5f,
+    96.f*px, 0.0f,
 
     // BOTTOM 1
     81.f*px, 0.0f,
     81.f*px, 0.5f,
     96.f*px, 0.5f,
-
-    // LEFT 0
-    0.0f,    0.0f,
-    0.0f,    0.5f,
-    17.f*px, 0.5f,
 
     // RIGHT 0
     17.f*px, 0.0f,
@@ -141,6 +136,11 @@ static f32 crate_texture_coords2[36*2] = {
     80.f*px, 0.0f,
     65.f*px, 0.0f,
 
+    // LEFT 0
+    0.0f,    0.0f,
+    0.0f,    0.5f,
+    17.f*px, 0.5f,
+
     // LEFT 1
     17.f*px, 0.0f,
      0.f*px, 0.0f,
@@ -151,24 +151,21 @@ static f32 crate[36*3] = {
   -0.5f, -0.5f, -0.5f, // 1 -x
   -0.5f, -0.5f,  0.5f,
   -0.5f,  0.5f,  0.5f,
-   0.5f,  0.5f, -0.5f, // 2 -z
+  -0.5f, -0.5f, -0.5f, // 2 -x
+  -0.5f,  0.5f,  0.5f,
+  -0.5f,  0.5f, -0.5f,
+   0.5f,  0.5f, -0.5f, // 3 -z
   -0.5f, -0.5f, -0.5f,
   -0.5f,  0.5f, -0.5f,
-   0.5f, -0.5f,  0.5f, // 3 down
-  -0.5f, -0.5f, -0.5f,
-   0.5f, -0.5f, -0.5f,
    0.5f,  0.5f, -0.5f, // 4 -z
    0.5f, -0.5f, -0.5f,
   -0.5f, -0.5f, -0.5f,
-  -0.5f, -0.5f, -0.5f, // 5 -x
-  -0.5f,  0.5f,  0.5f,
-  -0.5f,  0.5f, -0.5f,
+   0.5f, -0.5f,  0.5f, // 5 down
+  -0.5f, -0.5f, -0.5f,
+   0.5f, -0.5f, -0.5f,
    0.5f, -0.5f,  0.5f, // 6 down
   -0.5f, -0.5f,  0.5f,
   -0.5f, -0.5f, -0.5f,
-  -0.5f,  0.5f,  0.5f, // 7 +z
-  -0.5f, -0.5f,  0.5f,
-   0.5f, -0.5f,  0.5f,
    0.5f,  0.5f,  0.5f, // 8 +x
    0.5f, -0.5f, -0.5f,
    0.5f,  0.5f, -0.5f,
@@ -181,6 +178,9 @@ static f32 crate[36*3] = {
    0.5f,  0.5f,  0.5f, // 11 up
   -0.5f,  0.5f, -0.5f,
   -0.5f,  0.5f,  0.5f,
+  -0.5f,  0.5f,  0.5f, // 7 +z
+  -0.5f, -0.5f,  0.5f,
+   0.5f, -0.5f,  0.5f,
    0.5f,  0.5f,  0.5f, // 12 +z
   -0.5f,  0.5f,  0.5f,
    0.5f, -0.5f,  0.5f
