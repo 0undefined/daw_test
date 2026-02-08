@@ -1,6 +1,12 @@
 #include <daw/types.h>
 static const f32 px = (float)(1. / 96.);
 
+static f32 quad_fullscreen[8] = {
+  -1.f, -1.f,
+   1.f, -1.f,
+   1.f,  1.f,
+  -1.f,  1.f,
+};
 static f32 quad[8] = {
   -1.f, -1.f,
    1.f, -1.f,

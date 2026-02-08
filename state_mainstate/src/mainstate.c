@@ -34,7 +34,9 @@ enum GameResources {
 
   MyQuadVertexShader,
   MyQuadFragShader,
+  MyQuadFullscreenVertexShader,
   MyQuadShader,
+  MyFullscreenShader,
 };
 
 enum blocktypes {
@@ -66,6 +68,11 @@ ShaderBuffer shaderbuf2[] = {
 };
 ShaderBuffer shaderbuf_quad[] = {
   SHADERBUFFER_NEW(f32, COUNT(quad),     2, quad,     staticdraw | ShaderBuffer_Type_vertexPosition),
+  SHADERBUFFER_NEW(f32, COUNT(quad_uv),  2, quad_uv,  staticdraw),
+  SHADERBUFFER_NEW(u16, COUNT(quad_ibo), 3, quad_ibo, staticdraw | ShaderBuffer_Type_vertexIndex),
+};
+ShaderBuffer shaderbuf_quad_fullscreen[] = {
+  SHADERBUFFER_NEW(f32, COUNT(quad_fullscreen), 2, quad_fullscreen,     staticdraw | ShaderBuffer_Type_vertexPosition),
   SHADERBUFFER_NEW(f32, COUNT(quad_uv),  2, quad_uv,  staticdraw),
   SHADERBUFFER_NEW(u16, COUNT(quad_ibo), 3, quad_ibo, staticdraw | ShaderBuffer_Type_vertexIndex),
 };
@@ -210,6 +217,7 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
   static u32 default_shader[] = {MyVertexShader, MyFragmentShader};
   static u32 dither_shader[]  = {MyVertexShader, MyDitherFragShader};
   static u32 quad_shader[]    = {MyQuadVertexShader, MyQuadFragShader};
+  static u32 quad_fullscreen_shader[]    = {MyQuadFullscreenVertexShader, MyQuadFragShader};
 
   /* 0. Declare resources */
   static asset_t mainstate_assets[] = {
@@ -233,6 +241,9 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       [MyQuadFragShader] = Declare_Shader("resources/quad.frag"),
       [MyQuadShader] = Declare_ShaderProgram(
           quad_shader, sizeof(quad_shader) / sizeof(quad_shader[0])),
+      [MyQuadFullscreenVertexShader] = Declare_Shader("resources/quad_fs.vert"),
+      [MyFullscreenShader] = Declare_ShaderProgram(
+          quad_fullscreen_shader, sizeof(quad_fullscreen_shader) / sizeof(quad_fullscreen_shader[0])),
   };
 
   /// Setup the camera
@@ -405,6 +416,18 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
   //r_set_camera(w->render_targets, 0, &state->c);
   r_set_camera(w->render_targets, 1, &state->c);
 
+  // Fokin illegal, the texturename referenced here should in theory change on
+  // every window/framebbuffer resize where we tear it down and create a new
+  // one..???
+  state->objects[3] = RenderObject_new(
+      // Shader
+      get_asset(&state->resources, MyFullscreenShader),
+      // Texture
+      w->render_targets->buffer[1],
+      // Vertices
+      shaderbuf_quad_fullscreen,
+      sizeof(shaderbuf_quad_fullscreen) / sizeof(ShaderBuffer)
+      );
 }
 
 void* mainstate_free(mainstate_state *state) {
@@ -425,6 +448,7 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
   draw_model(w, 1, &state->terrain.renderobj, (vec4){0,0,0,1});
   // Location should, however
   // Draw UI by their screen XY coordinates, Z is the depth/layering
+  draw_model(w, 0, &state->objects[3], (vec4){0.0,0.0,0.0,1});
   draw_model(w, 0, &state->objects[2], (vec4){-0.5,0.5,0.0,1});
 
   // Move the camera
