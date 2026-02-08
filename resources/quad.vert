@@ -11,7 +11,7 @@ void main() {
 
     gl_Position =
     MVP *
-    vec4( pos.x, 1, pos.y, 1);
+    vec4( pos.x, pos.y, 0, 1);
     UV = uv;
     //vec4(pos.x, 1.0, pos.y, 1.0);
 

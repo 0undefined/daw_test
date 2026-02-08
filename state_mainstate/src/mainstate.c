@@ -113,6 +113,8 @@ void window_resize_callback(ivec3* dst, ivec2 src) {
   //glm_ivec2_divs(src, 4, *dst);
 }
 
+Camera UI_Camera;
+
 void perspective_update_callback(Camera* dst, void *s, ivec2 src) {
   mainstate_state *state = s;
 #ifdef FOV_ORTHO
@@ -366,27 +368,42 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
 	WARN("Number of bindings: %lu", state->input_ctx.len);
 	i_ctx_push(&state->input_ctx);
 
+  // Setup flat "final" camera
+  ivec2 ws = {200,200};
+  glm_vec3_copy((vec3){0,0,0}, UI_Camera.pos);
+  glm_vec3_copy((vec3){0,0,1}, UI_Camera.dir);
+  r_perspective_ortho(&UI_Camera, 15, ws);
 
 
   u32 t[] = {
+    // Texture final texture that is presented to screen
+    BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_RGB8),
+
+    // Target texture for intermmediate FB
     BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_RGB8),
 
     // The depth buffer could also be a texture like so:
     //   BUFFERPARAMETER_SET_PARAMETER( BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_DEPTH32),
     BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_render), BUFFERPARAMETER_FMT_DEPTH32F),
+
   };
   FramebufferParameters p[] = {
     // 16 by 16 is just some bogus values, but they cannot be zero, as they're
     //    needed to be set when resetting cameras.
+    {.num_textures = 1, .num_renderbuffers = 0, .dimensions = {48, 48, 0}},
     {.num_textures = 1, .num_renderbuffers = 1, .dimensions = {48, 48, 0}},
   };
 
   // There's a strange duality between using functions to change render_targets,
   // and manipulating the datastructures directly.
-  window_init_renderstack(w, 1, sizeof(t) / sizeof(t[0]), p, t);
+  window_init_renderstack(w, 2, sizeof(t) / sizeof(t[0]), p, t);
   w->render_targets->camera_reset_callback[0] = &perspective_update_callback;
   w->render_targets->framebuffer_size_callback[0] = &window_resize_callback;
-  r_set_camera(w->render_targets, 0, &state->c);
+  w->render_targets->camera_reset_callback[1] = &perspective_update_callback;
+  w->render_targets->framebuffer_size_callback[1] = &window_resize_callback;
+  r_set_camera(w->render_targets, 0, &UI_Camera);
+  //r_set_camera(w->render_targets, 0, &state->c);
+  r_set_camera(w->render_targets, 1, &state->c);
 
 }
 
@@ -402,12 +419,13 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
   const f32 dsec = (f32)(dt / 1000000.f);
 
   r_clear_buffer(w->context, w->render_targets, 0);
+  r_clear_buffer(w->context, w->render_targets, 1);
 
-  //extern Instance* p;
-  draw_model(w, 0, &state->terrain.renderobj, (vec4){0,0,0,1});
-  //engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
-  //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
-  //engine_draw_model(&(state->objects[1]), (vec3){0,0,0});
+  // Order really shouldn't matter
+  draw_model(w, 1, &state->terrain.renderobj, (vec4){0,0,0,1});
+  // Location should, however
+  // Draw UI by their screen XY coordinates, Z is the depth/layering
+  draw_model(w, 0, &state->objects[2], (vec4){-0.5,0.5,0.0,1});
 
   // Move the camera
   // ... all of this should be easily selectable in the engine
