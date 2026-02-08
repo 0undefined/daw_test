@@ -4,14 +4,16 @@
 #include <daw/rendering.h>
 #include <states/mainstate.h>
 #include <daw/state.h>
+#include <daw/window.h>
+#include <glad/gl.h>
 #include <worldgen.h>
 #include <crate.h>
 
 #define FOV_ORTHO 1
 
 #ifdef FOV_ORTHO
-#define FOV_MAX 35
-#define FOV_MIN 10
+#define FOV_MAX 85
+#define FOV_MIN 5
 #define FOV_INC 5
 #else
 #define FOV_MAX 95
@@ -41,8 +43,9 @@ enum blocktypes {
   Block_stone,
 };
 
-#define SPEED 96.f
-#define CAM_TRANSITION_DT 0.8f
+#define SPEED_MIN 16.f
+#define SPEED_MAX 128.f
+#define CAM_TRANSITION_DT 0.45f
 
 #define COUNT(a) sizeof(a) / sizeof(a[0])
 /* this is an unfortunate way of declaring this, unfortunately we _really_ don't
@@ -68,28 +71,65 @@ ShaderBuffer shaderbuf_quad[] = {
 };
 #undef COUNT
 
+/*
+ * https://learnopengl.com/Lighting/Basic-Lighting
+ *  We were just adding some lighting and stuff:)
+ *
+ *  We need to add uniforms: modelposition (see the transform thingymajig) and
+ *  lights.
+ *
+ *
+ *
+ *
+ *
+ * */
+
+    //Lerp: a + f * (b - a);
+    // or:  a * (1-f) + f*b;
+#define FF(_state) ((_state->fov - FOV_MIN) / (FOV_MAX - FOV_MIN))
+#define SPEED(_state) (SPEED_MIN + FF(_state) * (SPEED_MAX - SPEED_MIN))
+//#define SPEED(_state) (SPEED_MIN * (1 - FF(_state)) + (FF(_state) * SPEED_MAX))
 
 #define ACCELERATE( x, y, z ) \
   glm_vec3_add((vec3){x, y, z}, s->cam_acc, s->cam_acc)
-void move_cam_left(mainstate_state *s)       { ACCELERATE(-SPEED,    0,  0); }
-void move_cam_left_stop(mainstate_state *s)  { ACCELERATE(+SPEED,    0,  0); }
-void move_cam_right(mainstate_state *s)      { ACCELERATE( SPEED,    0,  0); }
-void move_cam_right_stop(mainstate_state *s) { ACCELERATE(-SPEED,    0,  0); }
-void move_cam_fwd(mainstate_state *s)        { ACCELERATE(     0,        0, -SPEED    ); }
-void move_cam_fwd_stop(mainstate_state *s)   { ACCELERATE(     0,        0, +SPEED    ); }
-void move_cam_bck(mainstate_state *s)        { ACCELERATE(     0,        0,  SPEED    ); }
-void move_cam_bck_stop(mainstate_state *s)   { ACCELERATE(     0,        0, -SPEED    ); }
+void move_cam_left(mainstate_state *s)       { ACCELERATE(-SPEED(s),    0,  0); }
+void move_cam_left_stop(mainstate_state *s)  { ACCELERATE(+SPEED(s),    0,  0); }
+void move_cam_right(mainstate_state *s)      { ACCELERATE( SPEED(s),    0,  0); }
+void move_cam_right_stop(mainstate_state *s) { ACCELERATE(-SPEED(s),    0,  0); }
+void move_cam_fwd(mainstate_state *s)        { ACCELERATE(     0,        0, -SPEED(s)    ); }
+void move_cam_fwd_stop(mainstate_state *s)   { ACCELERATE(     0,        0, +SPEED(s)    ); }
+void move_cam_bck(mainstate_state *s)        { ACCELERATE(     0,        0,  SPEED(s)    ); }
+void move_cam_bck_stop(mainstate_state *s)   { ACCELERATE(     0,        0, -SPEED(s)    ); }
 
-void move_cam_up(mainstate_state *s)         { ACCELERATE( 0,        SPEED,          0); }
-void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -SPEED,          0); }
-void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -SPEED,          0); }
-void move_cam_dwn_stop(mainstate_state *s)   { ACCELERATE( 0,       +SPEED,          0); }
+void move_cam_up(mainstate_state *s)         { ACCELERATE( 0,        SPEED(s),          0); }
+void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -SPEED(s),          0); }
+void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -SPEED(s),          0); }
+void move_cam_dwn_stop(mainstate_state *s)   { ACCELERATE( 0,       +SPEED(s),          0); }
+
+void window_resize_callback(ivec3* dst, ivec2 src) {
+  // Map the resolution 1:1
+  glm_ivec2_copy(src, *dst);
+  // Alternatively, scale down the buffer to 1:4
+  //glm_ivec2_divs(src, 4, *dst);
+}
+
+void perspective_update_callback(Camera* dst, void *s, ivec2 src) {
+  mainstate_state *state = s;
+#ifdef FOV_ORTHO
+  r_perspective_ortho(dst, (float)state->fov, src);
+#else
+  r_perspective(&state->c, (float)state->fov, windowsize);
+#endif
+}
 
 void perspective_update(mainstate_state *s) {
+  ivec2 windowsize;
+  window_get_size(&windowsize);
+  //extern Instance* p;
 #ifdef FOV_ORTHO
-  r_perspective_ortho((float)s->fov, &s->c);
+  r_perspective_ortho(&s->c, (float)s->fov, windowsize);
 #else
-  r_perspective(s->fov, &s->c);
+  r_perspective(&s->c, (float)s->fov, windowsize);
 #endif
 }
 
@@ -115,7 +155,7 @@ void fov_decrement(mainstate_state *s) {
 
 void cam_rotate_l(mainstate_state *s) {
   s->cam_dir_dt = CAM_TRANSITION_DT;
-  glm_vec3_rotate(s->cam_dir, 3.141f / 4.f, GLM_YUP);
+  glm_vec3_rotate(s->cam_dir, -(3.141f / 4.f), GLM_YUP);
   //glm_rotate_at(s->c.per, s->cam_pos, 3.141 / 4., GLM_YUP);
   //glm_rotate(s->c.per, 1, GLM_YUP);
   //perspective_update(s);
@@ -127,7 +167,7 @@ void cam_rotate_l(mainstate_state *s) {
 
 void cam_rotate_r(mainstate_state *s) {
   s->cam_dir_dt = CAM_TRANSITION_DT;
-  glm_vec3_rotate(s->cam_dir, -(3.141f / 4.f), GLM_YUP);
+  glm_vec3_rotate(s->cam_dir, 3.141f / 4.f, GLM_YUP);
   //glm_rotate(s->c.per, -(3.141 / 4.), GLM_YUP);
   //perspective_update(s);
     INFO("rotation: %.1f  %.1f  %.1f",
@@ -136,7 +176,7 @@ void cam_rotate_r(mainstate_state *s) {
         s->c.dir[2]);
 }
 
-void mainstate_init(mainstate_state *state, void* arg) {
+void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
 	INFO("Starting mainstate");
 
   if (arg != NULL) {
@@ -212,7 +252,6 @@ void mainstate_init(mainstate_state *state, void* arg) {
   glm_vec3_copy(state->c.dir, state->cam_dir);
 
   perspective_update(state);
-  r_set_camera(&state->c);
 
   INFO("initial position: %.1f  %.1f  %.1f",
       state->c.pos[0],
@@ -326,6 +365,29 @@ void mainstate_init(mainstate_state *state, void* arg) {
 
 	WARN("Number of bindings: %lu", state->input_ctx.len);
 	i_ctx_push(&state->input_ctx);
+
+
+
+  u32 t[] = {
+    BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_RGB8),
+
+    // The depth buffer could also be a texture like so:
+    //   BUFFERPARAMETER_SET_PARAMETER( BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_DEPTH32),
+    BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_render), BUFFERPARAMETER_FMT_DEPTH32F),
+  };
+  FramebufferParameters p[] = {
+    // 16 by 16 is just some bogus values, but they cannot be zero, as they're
+    //    needed to be set when resetting cameras.
+    {.num_textures = 1, .num_renderbuffers = 1, .dimensions = {48, 48, 0}},
+  };
+
+  // There's a strange duality between using functions to change render_targets,
+  // and manipulating the datastructures directly.
+  window_init_renderstack(w, 1, sizeof(t) / sizeof(t[0]), p, t);
+  w->render_targets->camera_reset_callback[0] = &perspective_update_callback;
+  w->render_targets->framebuffer_size_callback[0] = &window_resize_callback;
+  r_set_camera(w->render_targets, 0, &state->c);
+
 }
 
 void* mainstate_free(mainstate_state *state) {
@@ -333,20 +395,24 @@ void* mainstate_free(mainstate_state *state) {
   return NULL;
 }
 
-StateType mainstate_update(f64 dt, mainstate_state *state) {
+StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
 	StateType next_state = STATE_null;
+
   // Convert to seconds
-  const f32 dsec = (float)(dt / 1000000.0);
+  const f32 dsec = (f32)(dt / 1000000.f);
+
+  r_clear_buffer(w->context, w->render_targets, 0);
 
   //extern Instance* p;
-  engine_draw_model(&state->terrain.renderobj, (vec3){0,0,0});
+  draw_model(w, 0, &state->terrain.renderobj, (vec4){0,0,0,1});
   //engine_draw_model(&(state->objects[2]), (vec3){0,3,0});
   //engine_draw_model(&(state->objects[0]), (vec3){0,0,0});
   //engine_draw_model(&(state->objects[1]), (vec3){0,0,0});
 
   // Move the camera
   // ... all of this should be easily selectable in the engine
-  const float friction = 1.f / (1.f + (dsec * 7.5f));
+  // base camera friction of "16" seems good
+  const f32 friction = 1.f / (1.f + (dsec * 16.f));
   vec3 acc;
   vec3 speed;
 
