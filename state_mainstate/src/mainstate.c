@@ -6,13 +6,12 @@
 #include <daw/state.h>
 #include <daw/window.h>
 #include <glad/gl.h>
-#include <worldgen.h>
 #include <crate.h>
 
 #define FOV_ORTHO 1
 
 #ifdef FOV_ORTHO
-#define FOV_MAX 85
+#define FOV_MAX 145
 #define FOV_MIN 5
 #define FOV_INC 5
 #else
@@ -113,28 +112,42 @@ void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -SPEED(s),  
 void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -SPEED(s),          0); }
 void move_cam_dwn_stop(mainstate_state *s)   { ACCELERATE( 0,       +SPEED(s),          0); }
 
-void window_resize_callback(ivec3* dst, ivec2 src) {
+void window_resize_callback_ui(ivec3* dst, ivec2 src) {
   // Map the resolution 1:1
   glm_ivec2_copy(src, *dst);
   // Alternatively, scale down the buffer to 1:4
   //glm_ivec2_divs(src, 4, *dst);
 }
 
-Camera UI_Camera;
+void window_resize_callback(ivec3* dst, ivec2 src) {
+  // Map the resolution 1:1
+  glm_ivec2_copy(src, *dst);
+  // Alternatively, Supersampling (not working??)
+  //glm_ivec2_scale(src, 2, *dst);
+  // Alternatively, scale down the buffer to 1:4
+  //glm_ivec2_divs(src, 4, *dst);
+}
 
-void perspective_update_callback(Camera* dst, void *s, ivec2 src) {
+Camera UI_Camera;
+void perspective_update_callback_ui(void *restrict w, Camera *restrict dst, void *s, ivec2 src) {
+  mainstate_state *state = s;
+  r_perspective_ortho(dst, 15, src);
+  state->objects[3].texture = ((Window *restrict)w)->render_targets->buffer[1];
+}
+
+void perspective_update_callback(void *restrict _ /* unused */, Camera* dst, void *s, ivec2 src) {
   mainstate_state *state = s;
 #ifdef FOV_ORTHO
   r_perspective_ortho(dst, (float)state->fov, src);
 #else
-  r_perspective(&state->c, (float)state->fov, windowsize);
+  r_perspective(dst, (float)state->fov, src);
 #endif
 }
 
 void perspective_update(mainstate_state *s) {
   ivec2 windowsize;
   window_get_size(&windowsize);
-  //extern Instance* p;
+
 #ifdef FOV_ORTHO
   r_perspective_ortho(&s->c, (float)s->fov, windowsize);
 #else
@@ -143,7 +156,7 @@ void perspective_update(mainstate_state *s) {
 }
 
 void fov_increment(mainstate_state *s) {
-  if (s->fov >= FOV_MAX) {
+  if (s->fov + FOV_INC >= FOV_MAX) {
     s->fov = FOV_MAX;
   } else {
     s->fov = s->fov + FOV_INC;
@@ -153,7 +166,7 @@ void fov_increment(mainstate_state *s) {
 }
 
 void fov_decrement(mainstate_state *s) {
-  if (s->fov <= FOV_MIN) {
+  if (s->fov - FOV_INC <= FOV_MIN) {
     s->fov = FOV_MIN;
   } else {
     s->fov = s->fov - FOV_INC;
@@ -248,13 +261,13 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
 
   /// Setup the camera
   // Set the position (it is zero initialized)
-  glm_vec3_copy((vec3){WORLD_WIDTH / 2.f, WORLD_HEIGHT / 4.f + 4.f, WORLD_LENGTH / 2.f}, state->c.pos);
+  glm_vec3_copy((vec3){CHUNK_WIDTH / 2.f, CHUNK_HEIGHT / 4.f + 4.f, CHUNK_LENGTH / 2.f}, state->c.pos);
 
   // Copy to the desired position
   glm_vec3_copy(state->c.pos, state->cam_pos);
 
   // Field of view
-  state->fov = FOV_MIN + 2 * FOV_INC;
+  state->fov = FOV_MIN + FOV_INC;
 
   // Set the viewing angle of the camera -- the direction is subtracted from the
   // position.
@@ -316,13 +329,23 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
     exit(EXIT_FAILURE);
   }
 
-  gen_terrain(state->world, WORLD_HEIGHT/2, WORLD_LENGTH, WORLD_WIDTH);
-  for (isize i = 0; i < WORLD_SIZE; i++) {
+  gen_terrain(state->world);
+  for (isize i = 0; i < WORLD_SIZE * CHUNK_SIZE; i++) {
     if (state->world[i] == BLOCK_none) continue;
 
-    const isize y = i / (WORLD_LENGTH * WORLD_WIDTH); // height
-    const isize z = (i - (WORLD_LENGTH * WORLD_WIDTH * y)) / WORLD_WIDTH; // length
-    const isize x = i % WORLD_WIDTH; // width
+    const isize chunk_idx = i / CHUNK_SIZE;
+    const isize local_idx = i % CHUNK_SIZE;
+    const isize local_x = local_idx % CHUNK_WIDTH;
+    const isize local_y = local_idx / (CHUNK_LENGTH * CHUNK_WIDTH);
+    const isize local_z = (local_idx - (CHUNK_LENGTH * CHUNK_WIDTH * local_y)) / CHUNK_WIDTH;
+
+    const isize chunk_x = chunk_idx % WORLD_WIDTH;
+    const isize chunk_z = chunk_idx / WORLD_WIDTH;
+
+    const isize y = local_y; // height
+    const isize z = local_z + chunk_z * CHUNK_LENGTH; // length
+    const isize x = local_x + chunk_x * CHUNK_WIDTH; // width
+
     Transform t = {
       .position = {(float)x, (float)y, (float)z},
     };
@@ -408,17 +431,17 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
   // There's a strange duality between using functions to change render_targets,
   // and manipulating the datastructures directly.
   window_init_renderstack(w, 2, sizeof(t) / sizeof(t[0]), p, t);
-  w->render_targets->camera_reset_callback[0] = &perspective_update_callback;
-  w->render_targets->framebuffer_size_callback[0] = &window_resize_callback;
+  w->render_targets->camera_reset_callback[0] = &perspective_update_callback_ui;
+  w->render_targets->framebuffer_size_callback[0] = &window_resize_callback_ui;
   w->render_targets->camera_reset_callback[1] = &perspective_update_callback;
   w->render_targets->framebuffer_size_callback[1] = &window_resize_callback;
+
   r_set_camera(w->render_targets, 0, &UI_Camera);
-  //r_set_camera(w->render_targets, 0, &state->c);
   r_set_camera(w->render_targets, 1, &state->c);
 
-  // Fokin illegal, the texturename referenced here should in theory change on
-  // every window/framebbuffer resize where we tear it down and create a new
-  // one..???
+  // Remember to keep this texture up-to date when resizing! A caveat I'd rather
+  // have implemented in the engine s.t. I don't need to think about it here.
+  // I guess it is soon time to define a "scene" structure for DAW.
   state->objects[3] = RenderObject_new(
       // Shader
       get_asset(&state->resources, MyFullscreenShader),
@@ -427,10 +450,10 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       // Vertices
       shaderbuf_quad_fullscreen,
       sizeof(shaderbuf_quad_fullscreen) / sizeof(ShaderBuffer)
-      );
+  );
 }
 
-void* mainstate_free(mainstate_state *state) {
+void* mainstate_free(mainstate_state *_ /* unused */) {
 	i_ctx_pop();
   return NULL;
 }
@@ -445,11 +468,20 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
   r_clear_buffer(w->context, w->render_targets, 1);
 
   // Order really shouldn't matter
-  draw_model(w, 1, &state->terrain.renderobj, (vec4){0,0,0,1});
+  draw_model(w, 1, &state->terrain.renderobj, (vec4){0, 0, 0, 1});
   // Location should, however
   // Draw UI by their screen XY coordinates, Z is the depth/layering
-  draw_model(w, 0, &state->objects[3], (vec4){0.0,0.0,0.0,1});
-  draw_model(w, 0, &state->objects[2], (vec4){-0.5,0.5,0.0,1});
+  draw_model(w, 0, &state->objects[3], (vec4){0.0, 0.0, 0.0, 1});
+
+  {
+    // Anchor top left
+    const vec2 padding        = {240, 240};
+    const float window_width  = w->windowsize[0];
+    const float window_height = w->windowsize[1];
+    const float anchor_left   = -((window_width  - padding[0]) / window_width);
+    const float anchor_top    =  ((window_height - padding[1]) / window_height);
+    draw_model(w, 0, &state->objects[2], (vec4){anchor_left, anchor_top, 0.0, 1});
+  }
 
   // Move the camera
   // ... all of this should be easily selectable in the engine

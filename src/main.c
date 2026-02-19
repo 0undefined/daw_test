@@ -1,7 +1,9 @@
 #include <daw/daw.h>
 #include <daw/logging.h>
 
-#define MEMORY_SIZE 65536
+// 64MB
+#define MEMORY_SIZE 64000000
+
 
 Instance *p = NULL;
 
