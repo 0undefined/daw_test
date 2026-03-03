@@ -261,7 +261,7 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
 
   /// Setup the camera
   // Set the position (it is zero initialized)
-  glm_vec3_copy((vec3){CHUNK_WIDTH / 2.f, CHUNK_HEIGHT / 4.f + 4.f, CHUNK_LENGTH / 2.f}, state->c.pos);
+  glm_vec3_copy((vec3){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f + 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f}, state->c.pos);
 
   // Copy to the desired position
   glm_vec3_copy(state->c.pos, state->cam_pos);
@@ -330,6 +330,8 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
   }
 
   gen_terrain(state->world);
+  usize total = 0;
+  usize culled = 0;
   for (isize i = 0; i < WORLD_SIZE * CHUNK_SIZE; i++) {
     if (state->world[i] == BLOCK_none) continue;
 
@@ -349,7 +351,14 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
     Transform t = {
       .position = {(float)x, (float)y, (float)z},
     };
-    switch (state->world[i]) {
+    if (state->world[i] & ((1 << 5) - 1)) {
+      total++;
+    }
+    if (SURROUNDED(state->world[i])) {
+      culled++;
+      continue;
+    }
+    switch (state->world[i] & ((1 << 5) - 1)) {
       case BLOCK_grass:
         if (-1 == renderbatch_add(&(state->terrain), &(state->objects[0]), &t)) {
           ERROR("Failed to add model 0 to render batch!");
@@ -365,6 +374,8 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       default: break;
     }
   }
+
+  INFO("Culled %u / %u (%.2f)", culled, total, (float)culled / (float)total);
 
   // Create the render object from the buffer
   renderbatch_refresh(&(state->terrain));

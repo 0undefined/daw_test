@@ -16,7 +16,7 @@ typedef struct mainstate_state {
   Shader       shaders[10];
   RenderBatch  terrain;
   RenderObject objects[10];
-  u8 world[WORLD_SIZE * CHUNK_SIZE];
+  u32 world[WORLD_SIZE * CHUNK_SIZE];
   i_ctx input_ctx;
   binding_t input_bindings[10];
   vec3 cam_dir;
