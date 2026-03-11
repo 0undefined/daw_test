@@ -8,10 +8,10 @@ static f32 quad_fullscreen[8] = {
   -1.f,  1.f,
 };
 static f32 quad[8] = {
-  -1.f, -1.f,
-   1.f, -1.f,
-   1.f,  1.f,
-  -1.f,  1.f,
+  -85.f, -85.f,
+   85.f, -85.f,
+   85.f,  85.f,
+  -85.f,  85.f,
 };
 
 static u16 quad_ibo[6] = {

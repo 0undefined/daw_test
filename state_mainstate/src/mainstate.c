@@ -300,7 +300,7 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
     glm_vec3_sub(A,B,B);
     glm_vec3_sub(A,C,C);
 
-    glm_vec3_cross(B,C,A);
+    glm_vec3_cross(C,B,A);
     glm_vec3_normalize(A);
 
     glm_vec3_copy(A, &crate_normals[i * 3]);
