@@ -6,14 +6,24 @@
 #include <daw/rendering.h>
 #include <daw/resources.h>
 #include <daw/input.h>
-
+#define CGLM_FORCE_DEPTH_ZERO_TO_ONE 1
 #include <cglm/cglm.h>
 
 #include <worldgen.h>
 
+struct assimp_mesh {
+  usize vertices_len;
+  usize indices_len;
+  usize normals_len;
+  f32* vertices;
+  u32* indices;
+  f32* normals;
+};
+
 typedef struct mainstate_state {
   /* Resources */
   Shader       shaders[10];
+  struct assimp_mesh meshes[2];
   RenderBatch  terrain;
   RenderObject objects[10];
   u32 world[WORLD_SIZE * CHUNK_SIZE];

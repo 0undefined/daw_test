@@ -1,3 +1,5 @@
+#define CGLM_FORCE_DEPTH_ZERO_TO_ONE 1
+
 #include <daw/daw.h>
 #include <daw/utils.h>
 #include <daw/logging.h>
@@ -7,6 +9,11 @@
 #include <daw/window.h>
 #include <glad/gl.h>
 #include <crate.h>
+
+
+#include <assimp/cimport.h>        // Plain-C interface
+#include <assimp/scene.h>          // Output data structure
+#include <assimp/postprocess.h>    // Post processing flags
 
 #define FOV_ORTHO 1
 
@@ -126,6 +133,79 @@ void window_resize_callback(ivec3* dst, ivec2 src) {
   //glm_ivec2_scale(src, 2, *dst);
   // Alternatively, scale down the buffer to 1:4
   //glm_ivec2_divs(src, 4, *dst);
+}
+
+ShaderBuffer model_shaderbuf[3];
+ShaderBuffer light_shaderbuf[3];
+
+static void load_model_from_file(const char* file_path, struct assimp_mesh *mesh) {
+  // Start the import on the given file with some example postprocessing
+  // Usually - if speed is not the most important aspect for you - you'll t
+  // probably to request more postprocessing than we do in this example.
+  const struct aiScene* scene = aiImportFile( file_path,
+    aiProcess_CalcTangentSpace       |
+    aiProcess_Triangulate            |
+    //aiProcess_JoinIdenticalVertices  |
+    aiProcess_SortByPType);
+
+  // If the import failed, report it
+  if(scene == NULL) {
+    ERROR("Failed to import model: %s", aiGetErrorString());
+    return;
+  }
+
+  if (mesh == NULL) {
+    mesh = calloc(1, sizeof(struct assimp_mesh));
+  }
+
+  for (u32 m = 0; m < scene->mNumMeshes; m++) {
+    mesh->vertices_len = scene->mMeshes[m]->mNumVertices * 3;
+    mesh->normals_len = scene->mMeshes[m]->mNumVertices * 3;
+    //mesh_uv_len = scene->mMeshes[m]->mNumVertices * 2;
+
+    mesh->vertices = calloc(scene->mMeshes[m]->mNumVertices * 3, sizeof(float));
+    mesh->normals = calloc(scene->mMeshes[m]->mNumVertices * 3, sizeof(float));
+    //mesh_uv = calloc(scene->mMeshes[m]->mNumVertices * 2, sizeof(float));
+    for (u32 i = 0; i < scene->mMeshes[m]->mNumVertices; i++) {
+      mesh->vertices[i * 3 + 0] = scene->mMeshes[m]->mVertices[i].x;
+      mesh->vertices[i * 3 + 1] = scene->mMeshes[m]->mVertices[i].y;
+      mesh->vertices[i * 3 + 2] = scene->mMeshes[m]->mVertices[i].z;
+
+      mesh->normals[i * 3 + 0] = scene->mMeshes[m]->mNormals[i].x;
+      mesh->normals[i * 3 + 1] = scene->mMeshes[m]->mNormals[i].y;
+      mesh->normals[i * 3 + 2] = scene->mMeshes[m]->mNormals[i].z;
+
+      //if (scene->mMeshes[m]->mTextureCoords[i] == NULL) {
+      //  mesh_uv[i * 2 + 0] = 0;
+      //  mesh_uv[i * 2 + 1] = 0;
+      //} else {
+      //  mesh_uv[i * 2 + 0] = scene->mMeshes[m]->mTextureCoords[i]->x;
+      //  mesh_uv[i * 2 + 1] = scene->mMeshes[m]->mTextureCoords[i]->y;
+      //}
+    }
+
+    // Count the vertices for all faces first:)
+    mesh->indices_len = 0;
+    for (u32 i = 0; i < scene->mMeshes[m]->mNumFaces; i++) {
+      mesh->indices_len += scene->mMeshes[m]->mFaces[i].mNumIndices;
+    }
+
+    mesh->indices = calloc(mesh->indices_len, sizeof(float));
+    usize mesh_idx = 0;
+    for (u32 i = 0; i < scene->mMeshes[m]->mNumFaces; i++) {
+      for (u32 j = 0; j < scene->mMeshes[m]->mFaces[i].mNumIndices; j++) {
+        mesh->indices[mesh_idx] = scene->mMeshes[m]->mFaces[i].mIndices[j];
+        mesh_idx++;
+      }
+    }
+
+    // normals??
+  }
+  // Now we can access the file's contents
+  //DoTheSceneProcessing( scene);
+
+  // We're done. Release all resources associated with this import
+  aiReleaseImport(scene);
 }
 
 Camera UI_Camera;
