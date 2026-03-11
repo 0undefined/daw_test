@@ -42,6 +42,10 @@ enum GameResources {
   MyQuadFragShader,
   MyQuadFullscreenVertexShader,
   MyQuadShader,
+
+  MySimpleShader_vert,
+  MySimpleShader_frag,
+  MySimpleShader,
   MyFullscreenShader,
 };
 
@@ -211,7 +215,15 @@ static void load_model_from_file(const char* file_path, struct assimp_mesh *mesh
 Camera UI_Camera;
 void perspective_update_callback_ui(void *restrict w, Camera *restrict dst, void *s, ivec2 src) {
   mainstate_state *state = s;
-  r_perspective_ortho(dst, 15, src);
+  const f32 ratio = (f32)src[0] / (f32)src[1];
+  const f32 sz = src[1];
+  const f32 ratiow = (f32)src[1] / (f32)src[0];
+  const f32 sw = src[0];
+  //glm_frustum(-src[0] * ratio, src[0] * ratio, -src[1] * ratio, src[1] * ratio, 0.f, 10.f, dst->per);
+  //glm_frustum(-src[0] * ratio, src[0] * ratio, -src[1] * ratio, src[1] * ratio, 0.f, 10.f, dst->per);
+  //glm_frustum(-10.f, 10.f, -10.f, 10.f, 1.0f, 100.f, dst->per);
+  //r_perspective_ortho(dst, 15, src);
+  glm_ortho(-sz * ratio, sz * ratio, -sw * ratiow, sw * ratiow, -sz * 10.f, sz * 10.f, dst->per);
   state->objects[3].texture = ((Window *restrict)w)->render_targets->buffer[1];
 }
 
@@ -311,6 +323,7 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
   static u32 dither_shader[]  = {MyVertexShader, MyDitherFragShader};
   static u32 quad_shader[]    = {MyQuadVertexShader, MyQuadFragShader};
   static u32 quad_fullscreen_shader[]    = {MyQuadFullscreenVertexShader, MyQuadFragShader};
+  static u32 simple_shader[]    = {MySimpleShader_vert, MySimpleShader_frag};
 
   /* 0. Declare resources */
   static asset_t mainstate_assets[] = {
@@ -337,6 +350,12 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       [MyQuadFullscreenVertexShader] = Declare_Shader("resources/quad_fs.vert"),
       [MyFullscreenShader] = Declare_ShaderProgram(
           quad_fullscreen_shader, sizeof(quad_fullscreen_shader) / sizeof(quad_fullscreen_shader[0])),
+
+      [MySimpleShader_vert] = Declare_Shader("resources/simpl.vert"),
+      [MySimpleShader_frag] = Declare_Shader("resources/simpl.frag"),
+      [MySimpleShader] = Declare_ShaderProgram(
+          simple_shader, sizeof(simple_shader) / sizeof(simple_shader[0])),
+
   };
 
   /// Setup the camera
@@ -542,6 +561,46 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       shaderbuf_quad_fullscreen,
       sizeof(shaderbuf_quad_fullscreen) / sizeof(ShaderBuffer)
   );
+
+
+  load_model_from_file("resources/suzanne.obj", &state->meshes[0]);
+  load_model_from_file("resources/icosphere.obj", &state->meshes[1]);
+
+  model_shaderbuf[0] =
+  SHADERBUFFER_NEW(f32, state->meshes[0].vertices_len, 3, state->meshes[0].vertices, staticdraw | ShaderBuffer_Type_vertexPosition);
+  model_shaderbuf[1] =
+  SHADERBUFFER_NEW(f32, state->meshes[0].normals_len, 3, state->meshes[0].normals, staticdraw);
+  //model_shaderbuf[2] =
+  //SHADERBUFFER_NEW(f32, state->meshes[0].uv_len, 2, state->meshes[0].uv, staticdraw);
+  model_shaderbuf[2] =
+  SHADERBUFFER_NEW(u32, state->meshes[0].indices_len,  3, state->meshes[0].indices,  staticdraw | ShaderBuffer_Type_vertexIndex);
+
+  state->objects[4] = RenderObject_new(
+      // Shader
+      get_asset(&state->resources, MySimpleShader),
+      // Texture
+      0, //w->render_targets->buffer[1],
+      // Vertices
+      model_shaderbuf,
+      sizeof(model_shaderbuf) / sizeof(ShaderBuffer)
+      );
+
+  light_shaderbuf[0] =
+  SHADERBUFFER_NEW(f32, state->meshes[1].vertices_len, 3, state->meshes[1].vertices, staticdraw | ShaderBuffer_Type_vertexPosition);
+  light_shaderbuf[1] =
+  SHADERBUFFER_NEW(f32, state->meshes[1].normals_len, 3, state->meshes[1].normals, staticdraw);
+  light_shaderbuf[2] =
+  SHADERBUFFER_NEW(u32, state->meshes[1].indices_len,  3, state->meshes[1].indices,  staticdraw | ShaderBuffer_Type_vertexIndex);
+
+  state->objects[5] = RenderObject_new(
+      // Shader
+      get_asset(&state->resources, MySimpleShader),
+      // Texture
+      0, //w->render_targets->buffer[1],
+      // Vertices
+      light_shaderbuf,
+      sizeof(light_shaderbuf) / sizeof(ShaderBuffer)
+      );
 }
 
 void* mainstate_free(mainstate_state *_ /* unused */) {
@@ -559,7 +618,17 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
   r_clear_buffer(w->context, w->render_targets, 1);
 
   // Order really shouldn't matter
+  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f, 1});
+  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f - 1.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f + 2, 1});
+  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f + 4, 1});
+  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f + 2, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f + 4, 1});
+  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f, 1});
+
   draw_model(w, 1, &state->terrain.renderobj, (vec4){0, 0, 0, 1});
+
+  // Light
+  draw_model(w, 1, &state->objects[5], (vec4){7, 65, 10, 1});
+
   // Location should, however
   // Draw UI by their screen XY coordinates, Z is the depth/layering
   draw_model(w, 0, &state->objects[3], (vec4){0.0, 0.0, 0.0, 1});
@@ -569,8 +638,8 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
     const vec2 padding        = {240, 240};
     const float window_width  = w->windowsize[0];
     const float window_height = w->windowsize[1];
-    const float anchor_left   = -((window_width  - padding[0]) / window_width);
-    const float anchor_top    =  ((window_height - padding[1]) / window_height);
+    const float anchor_left   = -(window_width - padding[0]);
+    const float anchor_top    =  (window_height - padding[1]);
     draw_model(w, 0, &state->objects[2], (vec4){anchor_left, anchor_top, 0.0, 1});
   }
 
