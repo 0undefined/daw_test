@@ -27,6 +27,12 @@
 #define FOV_INC 20
 #endif
 
+enum FramebufferLayers {
+  FRAMEBUF_UI = 0,
+  FRAMEBUF_OBJ = 1,
+  FRAMEBUF_CAM = 2,
+};
+
 enum GameResources {
   MyVertexShader,
   MyFragmentShader,
@@ -105,6 +111,7 @@ ShaderBuffer shaderbuf_quad_fullscreen[] = {
     // or:  a * (1-f) + f*b;
 #define FF(_state) ((_state->fov - FOV_MIN) / (FOV_MAX - FOV_MIN))
 #define SPEED(_state) (SPEED_MIN + FF(_state) * (SPEED_MAX - SPEED_MIN))
+#define PLAYER_SPEED (12.f)
 //#define SPEED(_state) (SPEED_MIN * (1 - FF(_state)) + (FF(_state) * SPEED_MAX))
 
 #define ACCELERATE( x, y, z ) \
@@ -122,6 +129,19 @@ void move_cam_up(mainstate_state *s)         { ACCELERATE( 0,        SPEED(s),  
 void move_cam_up_stop(mainstate_state *s)    { ACCELERATE( 0,       -SPEED(s),          0); }
 void move_cam_dwn(mainstate_state *s)        { ACCELERATE( 0,       -SPEED(s),          0); }
 void move_cam_dwn_stop(mainstate_state *s)   { ACCELERATE( 0,       +SPEED(s),          0); }
+
+#undef ACCELERATE
+#define ACCELERATE( x, y, z ) \
+  glm_vec3_add((vec3){x, y, z}, s->player.p.acc, s->player.p.acc)
+void move_player_left(mainstate_state *s)       { ACCELERATE(-PLAYER_SPEED, 0, 0); }
+void move_player_left_stop(mainstate_state *s)  { ACCELERATE(+PLAYER_SPEED, 0, 0); }
+void move_player_right(mainstate_state *s)      { ACCELERATE( PLAYER_SPEED, 0, 0); }
+void move_player_right_stop(mainstate_state *s) { ACCELERATE(-PLAYER_SPEED, 0, 0); }
+void move_player_fwd(mainstate_state *s)        { ACCELERATE(0, 0, -PLAYER_SPEED); }
+void move_player_fwd_stop(mainstate_state *s)   { ACCELERATE(0, 0, +PLAYER_SPEED); }
+void move_player_bck(mainstate_state *s)        { ACCELERATE(0, 0,  PLAYER_SPEED); }
+void move_player_bck_stop(mainstate_state *s)   { ACCELERATE(0, 0, -PLAYER_SPEED); }
+
 
 void window_resize_callback_ui(ivec3* dst, ivec2 src) {
   // Map the resolution 1:1
@@ -224,7 +244,7 @@ void perspective_update_callback_ui(void *restrict w, Camera *restrict dst, void
   //glm_frustum(-10.f, 10.f, -10.f, 10.f, 1.0f, 100.f, dst->per);
   //r_perspective_ortho(dst, 15, src);
   glm_ortho(-sz * ratio, sz * ratio, -sw * ratiow, sw * ratiow, -sz * 10.f, sz * 10.f, dst->per);
-  state->objects[3].texture = ((Window *restrict)w)->render_targets->buffer[1];
+  state->objects[3].texture = ((Window *restrict)w)->render_targets->buffer[3];
 }
 
 void perspective_update_callback(void *restrict _ /* unused */, Camera* dst, void *s, ivec2 src) {
@@ -504,6 +524,12 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
 	state->input_bindings[ 8] = BindAction(KEY_Q, 0, cam_rotate_l);
 	state->input_bindings[ 9] = BindAction(KEY_E, 0, cam_rotate_r);
 
+  state->input_bindings[ 10] = BindState(KEY_LEFT,  0, move_player_left,  move_player_left_stop);
+  state->input_bindings[ 11] = BindState(KEY_UP,    0, move_player_fwd, move_player_fwd_stop);
+  state->input_bindings[ 12] = BindState(KEY_DOWN,  0, move_player_bck,   move_player_bck_stop);
+  state->input_bindings[ 13] = BindState(KEY_RIGHT, 0, move_player_right,   move_player_right_stop);
+
+
 	state->input_ctx = (i_ctx){
 		.bindings = (binding_t*)&state->input_bindings,
 		.len = sizeof(state->input_bindings) / sizeof(binding_t),
@@ -523,6 +549,10 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
     // Texture final texture that is presented to screen
     BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_RGB8),
 
+    // object index texture, used for selecting individual objects using mouse
+    BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_UINT32),
+    BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_render), BUFFERPARAMETER_FMT_DEPTH16),
+
     // Target texture for intermmediate FB
     BUFFERPARAMETER_SET_PARAMETER(BUFFERPARAMETER_SET_TYPE(0, BufferType_texture), BUFFERPARAMETER_FMT_RGB8),
 
@@ -532,23 +562,34 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
 
   };
   FramebufferParameters p[] = {
-    // 16 by 16 is just some bogus values, but they cannot be zero, as they're
+    // 48 by 48 is just some bogus values, but they cannot be zero, as they're
     //    needed to be set when resetting cameras.
-    {.num_textures = 1, .num_renderbuffers = 0, .dimensions = {48, 48, 0}},
-    {.num_textures = 1, .num_renderbuffers = 1, .dimensions = {48, 48, 0}},
+    // Final framebuffer
+    [FRAMEBUF_UI] = {.num_textures = 1, .num_renderbuffers = 0, .dimensions = {48, 48, 0}},
+    // Object framebuffer
+    [FRAMEBUF_OBJ] = {.num_textures = 1, .num_renderbuffers = 1, .dimensions = {48, 48, 0}},
+    // Drawing framebuffer
+    [FRAMEBUF_CAM] = {.num_textures = 1, .num_renderbuffers = 1, .dimensions = {48, 48, 0}},
   };
 
   // There's a strange duality between using functions to change render_targets,
   // and manipulating the datastructures directly.
-  window_init_renderstack(w, 2, sizeof(t) / sizeof(t[0]), p, t);
-  w->render_targets->camera_reset_callback[0] = &perspective_update_callback_ui;
-  w->render_targets->framebuffer_size_callback[0] = &window_resize_callback_ui;
-  w->render_targets->camera_reset_callback[1] = &perspective_update_callback;
-  w->render_targets->framebuffer_size_callback[1] = &window_resize_callback;
+  window_init_renderstack(w, sizeof(p) / sizeof(p[0]), sizeof(t) / sizeof(t[0]), p, t);
+  w->render_targets->camera_reset_callback[FRAMEBUF_UI] = &perspective_update_callback_ui;
+  w->render_targets->framebuffer_size_callback[FRAMEBUF_UI] = &window_resize_callback_ui;
+  w->render_targets->camera_reset_callback[FRAMEBUF_OBJ] = &perspective_update_callback;
+  w->render_targets->framebuffer_size_callback[FRAMEBUF_OBJ] = &window_resize_callback;
+  w->render_targets->camera_reset_callback[FRAMEBUF_CAM] = &perspective_update_callback;
+  w->render_targets->framebuffer_size_callback[FRAMEBUF_CAM] = &window_resize_callback;
 
   r_set_camera(w->render_targets, 0, &UI_Camera);
   r_set_camera(w->render_targets, 1, &state->c);
+  r_set_camera(w->render_targets, 2, &state->c);
 
+  // Create the quad renderobject for the final renderpass, using the (render)
+  // buffer from the FRAMEBUF_CAM. Not really desired that we need indexing into
+  // the rendertargets->buffer.
+  //
   // Remember to keep this texture up-to date when resizing! A caveat I'd rather
   // have implemented in the engine s.t. I don't need to think about it here.
   // I guess it is soon time to define a "scene" structure for DAW.
@@ -556,7 +597,7 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       // Shader
       get_asset(&state->resources, MyFullscreenShader),
       // Texture
-      w->render_targets->buffer[1],
+      w->render_targets->buffer[3],
       // Vertices
       shaderbuf_quad_fullscreen,
       sizeof(shaderbuf_quad_fullscreen) / sizeof(ShaderBuffer)
@@ -601,6 +642,12 @@ void mainstate_init(Window *restrict w, mainstate_state *state, void* arg) {
       light_shaderbuf,
       sizeof(light_shaderbuf) / sizeof(ShaderBuffer)
       );
+
+
+  // Setup
+  glm_vec3_zero(state->player.p.vel);
+  glm_vec3_zero(state->player.p.acc);
+  glm_vec3_copy((vec3){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f}, state->player.p.pos);
 }
 
 void* mainstate_free(mainstate_state *_ /* unused */) {
@@ -614,24 +661,45 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
   // Convert to seconds
   const f32 dsec = (f32)(dt / 1000000.f);
 
-  r_clear_buffer(w->context, w->render_targets, 0);
-  r_clear_buffer(w->context, w->render_targets, 1);
+  r_clear_buffer(w->context, w->render_targets, FRAMEBUF_UI);
+  r_clear_buffer(w->context, w->render_targets, FRAMEBUF_OBJ);
+  r_clear_buffer(w->context, w->render_targets, FRAMEBUF_CAM);
 
   // Order really shouldn't matter
-  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f, 1});
-  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f - 1.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f + 2, 1});
-  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f + 4, 1});
-  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f + 2, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f + 4, 1});
-  draw_model(w, 1, &state->objects[4], (vec4){CHUNK_WIDTH * WORLD_WIDTH / 2.f, CHUNK_HEIGHT / 4.f, CHUNK_LENGTH * WORLD_LENGTH / 2.f, 1});
+  vec4 playerpos;
+  {
+  const f32 friction = 1.f / (1.f + (dsec * 32.f));
+  vec3 acc;
+  vec3 vel;
 
-  draw_model(w, 1, &state->terrain.renderobj, (vec4){0, 0, 0, 1});
+  glm_vec3_scale(state->player.p.acc, dsec, acc);
+  glm_vec3_scale(state->player.p.vel, dsec, vel);
+
+  glm_vec3_add(acc,   vel, vel);
+
+  // Add delta speed to speed
+  glm_vec3_add(acc,   state->player.p.vel, state->player.p.vel);
+  // Scale by friction
+  glm_vec3_scale(state->player.p.vel, friction, state->player.p.vel);
+  glm_vec3_add(state->player.p.pos,   state->player.p.vel, state->player.p.pos);
+  }
+  glm_vec4(state->player.p.pos, 1, playerpos);
+  draw_model(w, FRAMEBUF_CAM, &state->objects[4], playerpos);
+
+  draw_model(w, FRAMEBUF_CAM, &state->terrain.renderobj, (vec4){0, 0, 0, 1});
 
   // Light
-  draw_model(w, 1, &state->objects[5], (vec4){7, 65, 10, 1});
+  draw_model(w, FRAMEBUF_CAM, &state->objects[5], (vec4){7, 65, 10, 1});
+
+  { // repeat everything for the object selection buffer
+    draw_model(w, FRAMEBUF_CAM, &state->objects[4], playerpos);
+
+    draw_model(w, FRAMEBUF_OBJ, &state->terrain.renderobj, (vec4){0, 0, 0, 1});
+  }
 
   // Location should, however
   // Draw UI by their screen XY coordinates, Z is the depth/layering
-  draw_model(w, 0, &state->objects[3], (vec4){0.0, 0.0, 0.0, 1});
+  draw_model(w, FRAMEBUF_UI, &state->objects[3], (vec4){0.0, 0.0, 0.0, 1});
 
   {
     // Anchor top left
@@ -640,7 +708,7 @@ StateType mainstate_update(Window *restrict w, mainstate_state *state, f64 dt) {
     const float window_height = w->windowsize[1];
     const float anchor_left   = -(window_width - padding[0]);
     const float anchor_top    =  (window_height - padding[1]);
-    draw_model(w, 0, &state->objects[2], (vec4){anchor_left, anchor_top, 0.0, 1});
+    draw_model(w, FRAMEBUF_UI, &state->objects[2], (vec4){anchor_left, anchor_top, 0.0, 1});
   }
 
   // Move the camera
