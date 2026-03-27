@@ -20,6 +20,18 @@ struct assimp_mesh {
   f32* normals;
 };
 
+struct object_physics {
+  vec3 pos;
+  vec3 vel;
+  vec3 acc;
+};
+
+struct entity_info {
+  struct object_physics p;
+  // i16 health
+  // .. etc
+};
+
 typedef struct mainstate_state {
   /* Resources */
   Shader       shaders[10];
@@ -28,7 +40,7 @@ typedef struct mainstate_state {
   RenderObject objects[10];
   u32 world[WORLD_SIZE * CHUNK_SIZE];
   i_ctx input_ctx;
-  binding_t input_bindings[10];
+  binding_t input_bindings[14];
   vec3 cam_dir;
   f32 cam_dir_dt;
   vec3 cam_pos;
@@ -38,6 +50,7 @@ typedef struct mainstate_state {
   f64 fov;
   Resources resources;
   f64 height;
+  struct entity_info player;
 } mainstate_state;
 
 #endif
